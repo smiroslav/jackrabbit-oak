@@ -23,13 +23,22 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.Request;
+import com.amazonaws.Response;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
+import com.amazonaws.handlers.RequestHandler2;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBLockClientOptions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBLockClientOptions.AmazonDynamoDBLockClientOptionsBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
@@ -50,9 +59,11 @@ import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
 import com.amazonaws.services.dynamodbv2.util.TableUtils;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
+import com.amazonaws.util.TimingInfo;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
@@ -62,6 +73,7 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 import org.apache.jackrabbit.oak.commons.Buffer;
+import org.apache.jackrabbit.oak.segment.spi.monitor.RemoteStoreMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,6 +99,8 @@ public final class AwsContext {
     private final Table journalTable;
     private final String lockTableName;
 
+    private RemoteStoreMonitor monitor;
+
     private AwsContext(AmazonS3 s3, String bucketName, String rootDirectory, AmazonDynamoDB ddb,
             String journalTableName, String lockTableName) {
         this.s3 = s3;
@@ -95,6 +109,60 @@ public final class AwsContext {
         this.ddb = ddb;
         this.journalTable = new DynamoDB(ddb).getTable(journalTableName);
         this.lockTableName = lockTableName;
+    }
+
+    private AwsContext(Configuration configuration) {
+        String region = configuration.region();
+        String rootDirectory = configuration.rootDirectory();
+        if (rootDirectory != null && rootDirectory.length() > 0 && rootDirectory.charAt(0) == '/') {
+            rootDirectory = rootDirectory.substring(1);
+        }
+
+        AWSCredentials credentials = configuration.sessionToken() == null || configuration.sessionToken().isEmpty()
+                ? new BasicAWSCredentials(configuration.accessKey(), configuration.secretKey())
+                : new BasicSessionCredentials(configuration.accessKey(), configuration.secretKey(),
+                        configuration.sessionToken());
+        AWSStaticCredentialsProvider credentialsProvider = new AWSStaticCredentialsProvider(credentials);
+
+        RequestHandler2 handler = new RequestHandler2() {
+            @Override
+            public void afterError(Request<?> request, Response<?> response, Exception e) {
+                process(request, response, e);
+            }
+
+            @Override
+            public void afterResponse(Request<?> request, Response<?> response) {
+                process(request, response, null);
+            }
+
+            private void process(Request<?> request, Response<?> response, Exception e) {
+                if (monitor != null) {
+                    TimingInfo timing = request.getAWSRequestMetrics().getTimingInfo();
+                    if (timing.isEndTimeKnown()) {
+                        long requestDuration = timing.getEndTimeNano() - timing.getStartTimeNano();
+                        monitor.requestDuration(requestDuration, TimeUnit.NANOSECONDS);
+                    }
+
+                    if (e == null) {
+                        monitor.requestCount();
+                    } else {
+                        monitor.requestError();
+                    }
+                }
+            }
+        };
+
+        AmazonS3 s3 = AmazonS3ClientBuilder.standard().withCredentials(credentialsProvider).withRegion(region)
+                .withRequestHandlers(handler).build();
+        AmazonDynamoDB ddb = AmazonDynamoDBClientBuilder.standard().withCredentials(credentialsProvider)
+                .withRegion(region).withRequestHandlers(handler).build();
+
+        this.s3 = s3;
+        this.bucketName = configuration.bucketName();
+        this.rootDirectory = rootDirectory.endsWith("/") ? rootDirectory : rootDirectory + "/";
+        this.ddb = ddb;
+        this.journalTable = new DynamoDB(ddb).getTable(configuration.journalTableName());
+        this.lockTableName = configuration.lockTableName();
     }
 
     /**
@@ -125,6 +193,17 @@ public final class AwsContext {
     /**
      * Creates the context used to interact with AWS services.
      * 
+     * @param configuration The configuration used to initialize the context.
+     * @return The context.
+     * @throws IOException
+     */
+    public static AwsContext create(Configuration configuration) throws IOException {
+        return new AwsContext(configuration);
+    }
+
+    /**
+     * Creates the context used to interact with AWS services.
+     * 
      * @param s3               Client for accessing Amazon S3.
      * @param bucketName       Name for the bucket that will store segments.
      * @param rootDirectory    The root directory under which the segment store is
@@ -145,6 +224,12 @@ public final class AwsContext {
     public static AwsContext create(AmazonS3 s3, String bucketName, String rootDirectory, AmazonDynamoDB ddb,
             String journalTableName, String lockTableName) throws IOException {
         AwsContext awsContext = new AwsContext(s3, bucketName, rootDirectory, ddb, journalTableName, lockTableName);
+        ensureAwsResources(s3, bucketName, ddb, journalTableName, lockTableName);
+        return awsContext;
+    }
+
+    private static void ensureAwsResources(AmazonS3 s3, String bucketName, AmazonDynamoDB ddb, String journalTableName,
+            String lockTableName) throws IOException {
         try {
             if (!s3.doesBucketExistV2(bucketName)) {
                 s3.createBucket(bucketName);
@@ -166,8 +251,10 @@ public final class AwsContext {
         } catch (AmazonServiceException e) {
             throw new IOException(e);
         }
+    }
 
-        return awsContext;
+    public void setRemoteStoreMonitor(RemoteStoreMonitor monitor) {
+        this.monitor = monitor;
     }
 
     public AmazonDynamoDBLockClientOptionsBuilder getLockClientOptionsBuilder() {
@@ -177,6 +264,15 @@ public final class AwsContext {
     public AwsContext withDirectory(String childDirectory) {
         return new AwsContext(s3, bucketName, rootDirectory + childDirectory, ddb, journalTable.getTableName(),
                 lockTableName);
+    }
+
+    public String getConfig() {
+        StringBuilder uri = new StringBuilder("aws:");
+        uri.append(bucketName).append(';');
+        uri.append(rootDirectory).append(';');
+        uri.append(journalTable.getTableName()).append(';');
+        uri.append(lockTableName);
+        return uri.toString();
     }
 
     public String getPath() {

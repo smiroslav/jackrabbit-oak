@@ -63,6 +63,7 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
+import com.amazonaws.util.IOUtils;
 import com.amazonaws.util.TimingInfo;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsV2Request;
@@ -332,6 +333,7 @@ public final class AwsContext {
         InputStream input = new ByteArrayInputStream(data);
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setUserMetadata(userMetadata);
+        metadata.setContentLength(data.length);
         PutObjectRequest request = new PutObjectRequest(bucketName, rootDirectory + name, input, metadata);
         try {
             s3.putObject(request);
@@ -342,8 +344,12 @@ public final class AwsContext {
 
     public void putObject(String name, InputStream input) throws IOException {
         try {
-            PutObjectRequest request = new PutObjectRequest(bucketName, rootDirectory + name, input,
-                    new ObjectMetadata());
+            byte[] bytes = IOUtils.toByteArray(input);
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(bytes.length);
+            InputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
+            PutObjectRequest request = new PutObjectRequest(bucketName, rootDirectory + name, byteArrayInputStream,
+                metadata);
             s3.putObject(request);
         } catch (AmazonServiceException e) {
             throw new IOException(e);

@@ -34,7 +34,7 @@ import java.util.Properties;
 
 import javax.net.ssl.HttpsURLConnection;
 
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -152,9 +152,9 @@ public class S3DataStoreUtils extends DataStoreUtils {
     public static void deleteBucket(String bucket, Date date) throws Exception {
         log.info("cleaning bucket [" + bucket + "]");
         Properties props = getS3Config();
-        AmazonS3Client s3service = Utils.openService(props);
+        AmazonS3 s3service = Utils.openService(props);
         TransferManager tmx = new TransferManager(s3service);
-        if (s3service.doesBucketExist(bucket)) {
+        if (s3service.doesBucketExistV2(bucket)) {
             for (int i = 0; i < 4; i++) {
                 tmx.abortMultipartUploads(bucket, date);
                 ObjectListing prevObjectListing = s3service.listObjects(bucket);

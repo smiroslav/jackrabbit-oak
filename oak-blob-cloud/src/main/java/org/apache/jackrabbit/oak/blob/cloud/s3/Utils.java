@@ -28,10 +28,13 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.StringUtils;
@@ -76,28 +79,18 @@ public final class Utils {
 
     /**
      * Create AmazonS3Client from properties.
-     * 
+     *
      * @param prop properties to configure @link {@link AmazonS3Client}
      * @return {@link AmazonS3Client}
      */
-    public static AmazonS3Client openService(final Properties prop) {
+    public static AmazonS3 openService(final Properties prop) {
         String accessKey = prop.getProperty(S3Constants.ACCESS_KEY);
         String secretKey = prop.getProperty(S3Constants.SECRET_KEY);
-        AmazonS3Client s3service = null;
-        if (StringUtils.isNullOrEmpty(accessKey)
-                || StringUtils.isNullOrEmpty(secretKey)) {
-            LOG.info("Configuring Amazon Client from environment");
-            s3service = new AmazonS3Client(getClientConfiguration(prop));
-        } else {
-            LOG.info("Configuring Amazon Client from property file.");
-            AWSCredentials credentials = new BasicAWSCredentials(accessKey,
-                    secretKey);
-            s3service = new AmazonS3Client(credentials,
-                    getClientConfiguration(prop));
-        }
+
         String region = prop.getProperty(S3Constants.S3_REGION);
         String endpoint = null;
         String propEndPoint = prop.getProperty(S3Constants.S3_END_POINT);
+
         if ((propEndPoint != null) & !"".equals(propEndPoint)) {
             endpoint = propEndPoint;
         } else {
@@ -118,14 +111,37 @@ public final class Utils {
                 endpoint = S3 + DOT + region + DOT + AWSDOTCOM;
             }
         }
+
         /*
          * setting endpoint to remove latency of redirection. If endpoint is
          * not set, invocation first goes us standard region, which
          * redirects it to correct location.
          */
-        s3service.setEndpoint(endpoint);
         LOG.info("S3 service endpoint [{}] ", endpoint);
-        return s3service;
+
+        AmazonS3 s3Client = null;
+            AmazonS3ClientBuilder amazonS3ClientBuilder = AmazonS3ClientBuilder
+                .standard()
+                .withClientConfiguration(getClientConfiguration(prop))
+                .withEndpointConfiguration(
+                    new AmazonS3ClientBuilder.EndpointConfiguration(endpoint, region)
+                );
+
+        if (!StringUtils.isNullOrEmpty(accessKey)
+                && !StringUtils.isNullOrEmpty(secretKey)) {
+
+            LOG.info("Configuring Amazon Client from property file.");
+            AWSCredentials credentials = new BasicAWSCredentials(accessKey,
+                    secretKey);
+            amazonS3ClientBuilder.withCredentials(new AWSStaticCredentialsProvider(credentials));
+
+        } else {
+            LOG.info("Amazon Client configured from environment");
+        }
+
+        s3Client = amazonS3ClientBuilder.build();
+
+        return s3Client;
     }
 
     /**
@@ -149,8 +165,8 @@ public final class Utils {
             if (bucketExists) break;
             try {
                 Thread.sleep(100 * tries);
+            } catch (InterruptedException e) {
             }
-            catch (InterruptedException e) { }
         }
         return bucketExists;
     }
@@ -158,7 +174,7 @@ public final class Utils {
     /**
      * Delete S3 bucket. This method first deletes all objects from bucket and
      * then delete empty bucket.
-     * 
+     *
      * @param bucketName the bucket name.
      */
     public static void deleteBucket(final String bucketName) throws IOException {
@@ -180,7 +196,7 @@ public final class Utils {
     /**
      * Read a configuration properties file. If the file name ends with ";burn",
      * the file is deleted after reading.
-     * 
+     *
      * @param fileName the properties file name
      * @return the properties
      * @throws java.io.IOException if the file doesn't exist
@@ -257,7 +273,7 @@ public final class Utils {
     public static Map<String, Object> asMap(Properties props) {
         Map<String, Object> map = Maps.newHashMap();
         for (Object key : props.keySet()) {
-            map.put((String)key, props.get(key));
+            map.put((String) key, props.get(key));
         }
         return map;
     }

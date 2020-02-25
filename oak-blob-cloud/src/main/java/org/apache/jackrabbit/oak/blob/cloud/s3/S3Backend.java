@@ -48,6 +48,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.HttpMethod;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.model.BucketAccelerateConfiguration;
@@ -130,10 +131,10 @@ public class S3Backend extends AbstractSharedBackend {
     static final long MAX_BINARY_UPLOAD_SIZE = 1024L * 1024L * 1024L * 1024L * 5L; // 5TB, AWS limitation
     private static final int MAX_ALLOWABLE_UPLOAD_URIS = 10000; // AWS limitation
 
-    private AmazonS3Client s3service;
+    private AmazonS3 s3service;
 
     // needed only in case of transfer acceleration is enabled for presigned URIs
-    private AmazonS3Client s3PresignService;
+    private AmazonS3 s3PresignService;
 
     private String bucket;
 
@@ -1159,19 +1160,19 @@ public class S3Backend extends AbstractSharedBackend {
      * S3DataRecord which lazily retrieves the input stream of the record.
      */
     static class S3DataRecord extends AbstractDataRecord {
-        private AmazonS3Client s3service;
+        private AmazonS3 s3service;
         private long length;
         private long lastModified;
         private String bucket;
         private boolean isMeta;
 
-        public S3DataRecord(AbstractSharedBackend backend, AmazonS3Client s3service, String bucket,
+        public S3DataRecord(AbstractSharedBackend backend, AmazonS3 s3service, String bucket,
             DataIdentifier key, long lastModified,
             long length) {
             this(backend, s3service, bucket, key, lastModified, length, false);
         }
 
-        public S3DataRecord(AbstractSharedBackend backend, AmazonS3Client s3service, String bucket,
+        public S3DataRecord(AbstractSharedBackend backend, AmazonS3 s3service, String bucket,
             DataIdentifier key, long lastModified,
             long length, boolean isMeta) {
             super(backend, key);

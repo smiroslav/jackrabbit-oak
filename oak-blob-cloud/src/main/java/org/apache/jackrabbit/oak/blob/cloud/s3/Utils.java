@@ -120,7 +120,7 @@ public final class Utils {
         LOG.info("S3 service endpoint [{}] ", endpoint);
 
         AmazonS3 s3Client = null;
-            AmazonS3ClientBuilder amazonS3ClientBuilder = AmazonS3ClientBuilder
+        AmazonS3ClientBuilder amazonS3ClientBuilder = AmazonS3ClientBuilder
                 .standard()
                 .withClientConfiguration(getClientConfiguration(prop))
                 .withEndpointConfiguration(

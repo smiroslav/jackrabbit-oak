@@ -16,10 +16,12 @@
  */
 package org.apache.jackrabbit.oak.segment.azure;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.InvalidKeyException;
 import java.util.EnumSet;
@@ -28,6 +30,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import com.google.common.io.Files;
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.StorageCredentials;
 import com.microsoft.azure.storage.StorageException;
@@ -86,6 +89,11 @@ public final class AzureUtilities {
         } catch (StorageException e) {
             throw new RepositoryNotReachableException(e);
         }
+    }
+
+    public static void readBufferFullyFromFile(File file, Buffer buffer) throws IOException {
+        Files.copy(file, new ByteBufferOutputStream(buffer));
+        buffer.flip();
     }
 
     public static void deleteAllEntries(CloudBlobDirectory directory) throws IOException {

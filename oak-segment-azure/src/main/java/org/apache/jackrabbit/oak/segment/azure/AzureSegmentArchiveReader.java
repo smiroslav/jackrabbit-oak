@@ -19,6 +19,7 @@ package org.apache.jackrabbit.oak.segment.azure;
 import static java.lang.Boolean.getBoolean;
 import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.getSegmentFileName;
 import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.readBufferFully;
+import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.readBufferFullyFromFile;
 
 import java.io.File;
 import java.io.IOException;
@@ -54,6 +55,8 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
 
     private Boolean hasGraph;
 
+    private static String FILE_CACHE_DIR = "/mnt/sandbox/cache/";
+
     AzureSegmentArchiveReader(CloudBlobDirectory archiveDirectory, IOMonitor ioMonitor) throws IOException {
         this.archiveDirectory = archiveDirectory;
         this.ioMonitor = ioMonitor;
@@ -84,7 +87,18 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
         }
         ioMonitor.beforeSegmentRead(pathAsFile(), msb, lsb, indexEntry.getLength());
         Stopwatch stopwatch = Stopwatch.createStarted();
-        readBufferFully(getBlob(getSegmentFileName(indexEntry)), buffer);
+
+        String segmentFileName = getSegmentFileName(indexEntry);
+        String segentPath = FILE_CACHE_DIR + archiveDirectory.getPrefix() + File.pathSeparator + segmentFileName;
+
+        System.out.println("[INFO] segentPath = " + segentPath);
+        File segmentFile = new File(segentPath);
+
+        if (segmentFile.exists()) {
+            readBufferFullyFromFile(segmentFile, buffer);
+        } else {
+            readBufferFully(getBlob(segmentFileName), buffer);
+        }
         long elapsed = stopwatch.elapsed(TimeUnit.NANOSECONDS);
         ioMonitor.afterSegmentRead(pathAsFile(), msb, lsb, indexEntry.getLength(), elapsed);
         return buffer;

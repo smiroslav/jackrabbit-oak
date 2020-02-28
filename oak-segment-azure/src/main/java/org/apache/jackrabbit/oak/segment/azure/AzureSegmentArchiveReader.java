@@ -16,10 +16,15 @@
  */
 package org.apache.jackrabbit.oak.segment.azure;
 
-import static java.lang.Boolean.getBoolean;
-import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.getSegmentFileName;
-import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.readBufferFully;
-import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.readBufferFullyFromFile;
+import com.google.common.base.Stopwatch;
+import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.CloudBlob;
+import com.microsoft.azure.storage.blob.CloudBlobDirectory;
+import com.microsoft.azure.storage.blob.CloudBlockBlob;
+import org.apache.jackrabbit.oak.commons.Buffer;
+import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
+import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveEntry;
+import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveReader;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,16 +36,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Stopwatch;
-import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.CloudBlob;
-import com.microsoft.azure.storage.blob.CloudBlobDirectory;
-import com.microsoft.azure.storage.blob.CloudBlockBlob;
-
-import org.apache.jackrabbit.oak.commons.Buffer;
-import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
-import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveEntry;
-import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveReader;
+import static java.lang.Boolean.getBoolean;
+import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.*;
 
 public class AzureSegmentArchiveReader implements SegmentArchiveReader {
     static final boolean OFF_HEAP = getBoolean("access.off.heap");
@@ -89,11 +86,11 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
         Stopwatch stopwatch = Stopwatch.createStarted();
 
         String segmentFileName = getSegmentFileName(indexEntry);
-        String segentPath = "/mnt/sandbox/cache/" + archiveDirectory.getPrefix() +  getSegmentFileName(indexEntry);
+        String segmentPath = "/mnt/sandbox/cache/" + archiveDirectory.getPrefix() + getSegmentFileName(indexEntry);
 
-        System.out.println("[INFO] segentPath = " + segentPath);
-        File segmentFile = new File(segentPath);
+        File segmentFile = new File(segmentPath);
 
+        System.out.println("[INFO] segmentPath = " + segmentPath + " exists=" + segmentFile.exists());
         if (segmentFile.exists()) {
             readBufferFullyFromFile(segmentFile, buffer);
         } else {
@@ -126,7 +123,8 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
         if (hasGraph == null) {
             try {
                 getGraph();
-            } catch (IOException ignore) { }
+            } catch (IOException ignore) {
+            }
         }
         return hasGraph;
     }

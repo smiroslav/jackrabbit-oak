@@ -89,7 +89,7 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
         Stopwatch stopwatch = Stopwatch.createStarted();
 
         String segmentFileName = getSegmentFileName(indexEntry);
-        String segentPath = FILE_CACHE_DIR + archiveDirectory.getPrefix() + File.pathSeparator + segmentFileName;
+        String segentPath = "/mnt/sandbox/cache/" + archiveDirectory.getPrefix() +  getSegmentFileName(indexEntry);
 
         System.out.println("[INFO] segentPath = " + segentPath);
         File segmentFile = new File(segentPath);

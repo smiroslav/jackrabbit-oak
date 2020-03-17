@@ -25,6 +25,7 @@ import com.microsoft.azure.storage.blob.CloudBlobDirectory;
 import org.apache.jackrabbit.oak.commons.Buffer;
 import org.apache.jackrabbit.oak.segment.SegmentId;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
+import org.apache.jackrabbit.oak.segment.azure.util.ExternalSegmentCache;
 import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.file.FileStoreBuilder;
 import org.apache.jackrabbit.oak.segment.file.InvalidFileStoreVersionException;
@@ -93,11 +94,12 @@ public class AzureReadSegmentTest {
         @Override
         public SegmentArchiveManager createArchiveManager(boolean mmap, boolean offHeapAccess, IOMonitor ioMonitor,
                 FileStoreMonitor fileStoreMonitor, RemoteStoreMonitor remoteStoreMonitor) {
-            return new AzureArchiveManager(segmentstoreDirectory, ioMonitor, fileStoreMonitor) {
+            ExternalSegmentCache externalSegmentCache = new ExternalSegmentCache(false, "", 0, false);
+            return new AzureArchiveManager(segmentstoreDirectory, ioMonitor, fileStoreMonitor, externalSegmentCache) {
                 @Override
                 public SegmentArchiveReader open(String archiveName) throws IOException {
                     CloudBlobDirectory archiveDirectory = getDirectory(archiveName);
-                    return new AzureSegmentArchiveReader(archiveDirectory, ioMonitor) {
+                    return new AzureSegmentArchiveReader(archiveDirectory, ioMonitor, externalSegmentCache) {
                         @Override
                         public Buffer readSegment(long msb, long lsb) throws IOException {
                             throw new RepositoryNotReachableException(

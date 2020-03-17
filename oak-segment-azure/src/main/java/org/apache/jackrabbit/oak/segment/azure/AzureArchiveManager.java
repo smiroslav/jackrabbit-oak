@@ -22,6 +22,7 @@ import com.microsoft.azure.storage.blob.CloudBlob;
 import com.microsoft.azure.storage.blob.CloudBlobDirectory;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.CopyStatus;
+import org.apache.jackrabbit.oak.segment.azure.util.ExternalSegmentCache;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveManager;
 import org.apache.jackrabbit.oak.segment.spi.monitor.FileStoreMonitor;
 import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
@@ -59,10 +60,17 @@ public class AzureArchiveManager implements SegmentArchiveManager {
 
     protected final FileStoreMonitor monitor;
 
+    private final ExternalSegmentCache externalSegmentCache;
+
     public AzureArchiveManager(CloudBlobDirectory cloudBlobDirectory, IOMonitor ioMonitor, FileStoreMonitor fileStoreMonitor) {
+        this(cloudBlobDirectory, ioMonitor, fileStoreMonitor, new ExternalSegmentCache(false, "", 0, false));
+    }
+
+    public AzureArchiveManager(CloudBlobDirectory cloudBlobDirectory, IOMonitor ioMonitor, FileStoreMonitor fileStoreMonitor, ExternalSegmentCache externalSegmentCache) {
         this.cloudBlobDirectory = cloudBlobDirectory;
         this.ioMonitor = ioMonitor;
         this.monitor = fileStoreMonitor;
+        this.externalSegmentCache = externalSegmentCache;
     }
 
     @Override
@@ -110,7 +118,7 @@ public class AzureArchiveManager implements SegmentArchiveManager {
             if (!archiveDirectory.getBlockBlobReference("closed").exists()) {
                 throw new IOException("The archive " + archiveName + " hasn't been closed correctly.");
             }
-            return new AzureSegmentArchiveReader(archiveDirectory, ioMonitor);
+            return new AzureSegmentArchiveReader(archiveDirectory, ioMonitor, externalSegmentCache);
         } catch (StorageException | URISyntaxException e) {
             throw new IOException(e);
         }
@@ -119,7 +127,7 @@ public class AzureArchiveManager implements SegmentArchiveManager {
     @Override
     public SegmentArchiveReader forceOpen(String archiveName) throws IOException {
         CloudBlobDirectory archiveDirectory = getDirectory(archiveName);
-        return new AzureSegmentArchiveReader(archiveDirectory, ioMonitor);
+        return new AzureSegmentArchiveReader(archiveDirectory, ioMonitor, externalSegmentCache);
     }
 
     @Override

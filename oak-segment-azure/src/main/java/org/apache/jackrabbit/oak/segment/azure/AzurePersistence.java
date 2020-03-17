@@ -34,6 +34,7 @@ import com.microsoft.azure.storage.blob.CloudAppendBlob;
 import com.microsoft.azure.storage.blob.CloudBlobDirectory;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.ListBlobItem;
+import org.apache.jackrabbit.oak.segment.azure.util.ExternalSegmentCache;
 import org.apache.jackrabbit.oak.segment.spi.monitor.FileStoreMonitor;
 import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
 import org.apache.jackrabbit.oak.segment.spi.monitor.RemoteStoreMonitor;
@@ -56,12 +57,23 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
 
     private static int TIMEOUT_INTERVAL = Integer.getInteger("segment.timeout.interval", 1);
 
+    private static boolean FS_SEGMENT_CACHE_ENABLED = Boolean.getBoolean("segment.fscache.enabled");
+
+    private static String FS_SEGMENT_CACHE_LOCATION = System.getProperty("segment.fscache.location", "/mnt/sandbox/cache");
+
+    private static int FS_SEGMENT_CACHE_MAX_SIZE = Integer.getInteger("segment.fscache.maxsize.mb", 512);
+
+    private static boolean REDIS_SEGMENT_CACHE_ENABLED = Boolean.getBoolean("segment.rediscache.enabled");
+
     private static final Logger log = LoggerFactory.getLogger(AzurePersistence.class);
 
     protected final CloudBlobDirectory segmentstoreDirectory;
 
+    private final ExternalSegmentCache externalSegmentCache;
+
     public AzurePersistence(CloudBlobDirectory segmentStoreDirectory) {
         this.segmentstoreDirectory = segmentStoreDirectory;
+        this.externalSegmentCache = new ExternalSegmentCache(FS_SEGMENT_CACHE_ENABLED, FS_SEGMENT_CACHE_LOCATION, FS_SEGMENT_CACHE_MAX_SIZE, REDIS_SEGMENT_CACHE_ENABLED);
 
         BlobRequestOptions defaultRequestOptions = segmentStoreDirectory.getServiceClient().getDefaultRequestOptions();
         if (defaultRequestOptions.getRetryPolicyFactory() == null) {
@@ -84,7 +96,7 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
     @Override
     public SegmentArchiveManager createArchiveManager(boolean mmap, boolean offHeapAccess, IOMonitor ioMonitor, FileStoreMonitor fileStoreMonitor, RemoteStoreMonitor remoteStoreMonitor) {
         attachRemoteStoreMonitor(remoteStoreMonitor);
-        return new AzureArchiveManager(segmentstoreDirectory, ioMonitor, fileStoreMonitor);
+        return new AzureArchiveManager(segmentstoreDirectory, ioMonitor, fileStoreMonitor, externalSegmentCache);
     }
 
     @Override

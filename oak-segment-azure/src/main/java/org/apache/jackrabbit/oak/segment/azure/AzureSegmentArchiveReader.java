@@ -22,11 +22,14 @@ import com.microsoft.azure.storage.blob.CloudBlob;
 import com.microsoft.azure.storage.blob.CloudBlobDirectory;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import org.apache.jackrabbit.oak.commons.Buffer;
+import org.apache.jackrabbit.oak.segment.azure.util.ExternalSegmentCache;
 import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveEntry;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveReader;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -49,14 +52,16 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
     private final long length;
 
     private final Map<UUID, AzureSegmentArchiveEntry> index = new LinkedHashMap<>();
+    private final ExternalSegmentCache externalSegmentCache;
 
     private Boolean hasGraph;
 
     private static String FILE_CACHE_DIR = "/mnt/sandbox/cache/";
 
-    AzureSegmentArchiveReader(CloudBlobDirectory archiveDirectory, IOMonitor ioMonitor) throws IOException {
+    AzureSegmentArchiveReader(CloudBlobDirectory archiveDirectory, IOMonitor ioMonitor, ExternalSegmentCache externalSegmentCache) throws IOException {
         this.archiveDirectory = archiveDirectory;
         this.ioMonitor = ioMonitor;
+        this.externalSegmentCache = externalSegmentCache;
         long length = 0;
         for (CloudBlob blob : AzureUtilities.getBlobs(archiveDirectory)) {
             Map<String, String> metadata = blob.getMetadata();
@@ -85,20 +90,44 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
         ioMonitor.beforeSegmentRead(pathAsFile(), msb, lsb, indexEntry.getLength());
         Stopwatch stopwatch = Stopwatch.createStarted();
 
-        String segmentFileName = getSegmentFileName(indexEntry);
-        String segmentPath = "/mnt/sandbox/cache/" + archiveDirectory.getPrefix() + getSegmentFileName(indexEntry);
+        readSegment(indexEntry, buffer);
 
-        File segmentFile = new File(segmentPath);
-
-        System.out.println("[INFO] segmentPath = " + segmentPath + " exists=" + segmentFile.exists());
-        if (segmentFile.exists()) {
-            readBufferFullyFromFile(segmentFile, buffer);
-        } else {
-            readBufferFully(getBlob(segmentFileName), buffer);
-        }
         long elapsed = stopwatch.elapsed(TimeUnit.NANOSECONDS);
         ioMonitor.afterSegmentRead(pathAsFile(), msb, lsb, indexEntry.getLength(), elapsed);
         return buffer;
+    }
+
+    private void readSegment(AzureSegmentArchiveEntry indexEntry, Buffer buffer) throws IOException {
+
+        String segmentFileName = getSegmentFileName(indexEntry);
+        String segmentPath = externalSegmentCache.getFileSystemCacheLocation() + File.separator + archiveDirectory.getPrefix() + segmentFileName;
+        if (externalSegmentCache.isFileSystemCacheEnabled()) {
+
+            File segmentFile = new File(segmentPath);
+
+            System.out.println("[INFO] segmentPath = " + segmentPath + " exists=" + segmentFile.exists());
+            if (segmentFile.exists()) {
+                try {
+                    readBufferFullyFromFile(segmentFile, buffer);
+                    return;
+                } catch (FileNotFoundException e) {
+                    System.out.println("[INFO] Segment deleted form file system: " + segmentFileName);
+                }
+            }
+        }
+
+        //TODO check in Redis abd return if fond
+        if (externalSegmentCache.isRedisCacheEnabled()) {
+
+        }
+
+        readBufferFully(getBlob(segmentFileName), buffer);
+
+        //TODO save segment in Redis cache
+
+        //save segment to cache
+        int fileSize = buffer.write(new FileOutputStream(segmentFileName).getChannel());
+        externalSegmentCache.cacheSize().addAndGet(fileSize);
     }
 
     @Override

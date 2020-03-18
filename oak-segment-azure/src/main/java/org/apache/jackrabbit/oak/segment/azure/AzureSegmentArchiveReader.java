@@ -57,6 +57,7 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
     private Boolean hasGraph;
 
     private static String FILE_CACHE_DIR = "/mnt/sandbox/cache/";
+    private File tarCacheDir;
 
     AzureSegmentArchiveReader(CloudBlobDirectory archiveDirectory, IOMonitor ioMonitor, ExternalSegmentCache externalSegmentCache) throws IOException {
         this.archiveDirectory = archiveDirectory;
@@ -72,6 +73,13 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
             length += blob.getProperties().getLength();
         }
         this.length = length;
+
+        if (this.externalSegmentCache.isFileSystemCacheEnabled()) {
+            tarCacheDir = new File(externalSegmentCache.getFileSystemCacheLocation() + File.separator + archiveDirectory.getPrefix());
+            if (!tarCacheDir.exists()) {
+                tarCacheDir.mkdirs();
+            }
+        }
     }
 
     @Override
@@ -103,7 +111,7 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
         String segmentPath = externalSegmentCache.getFileSystemCacheLocation() + File.separator + archiveDirectory.getPrefix() + segmentFileName;
         if (externalSegmentCache.isFileSystemCacheEnabled()) {
 
-            File segmentFile = new File(segmentPath);
+            File segmentFile = new File(tarCacheDir, segmentFileName);
 
             System.out.println("[INFO] segmentPath = " + segmentPath + " exists=" + segmentFile.exists());
             if (segmentFile.exists()) {
@@ -126,8 +134,11 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
         //TODO save segment in Redis cache
 
         //save segment to cache
-        int fileSize = buffer.write(new FileOutputStream(segmentFileName).getChannel());
-        externalSegmentCache.cacheSize().addAndGet(fileSize);
+        if (externalSegmentCache.isFileSystemCacheEnabled()) {
+            int fileSize = buffer.write(new FileOutputStream(segmentPath).getChannel());
+            buffer.flip();
+            externalSegmentCache.cacheSize().addAndGet(fileSize);
+        }
     }
 
     @Override

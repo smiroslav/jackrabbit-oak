@@ -23,6 +23,12 @@ public class ExternalSegmentCache {
         this.fileSystemCacheLocation = fileSystemCacheLocation;
         this.cacheMaxSize = fileSystemCacheMaxSize * 1024 * 1024;
         this.useRedisCache = useRedisCache;
+
+        File fsCacheDir = new File(fileSystemCacheLocation);
+
+        if (!fsCacheDir.exists()) {
+            fsCacheDir.mkdirs();
+        }
     }
 
     public boolean isFileSystemCacheEnabled() {

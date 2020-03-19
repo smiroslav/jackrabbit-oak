@@ -65,6 +65,8 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
 
     private static boolean REDIS_SEGMENT_CACHE_ENABLED = Boolean.getBoolean("oak.segment.rediscache.enabled");
 
+    private static int REDIS_SEGMENT_CACHE_EXPIRE_SECONDS = Integer.getInteger("oak.segment.rediscache.expire.seconds", 3600*24*2);
+
     private static String REDIS_HOST = System.getProperty("oak.segment.rediscache.host", "localhost");
 
     private static final Logger log = LoggerFactory.getLogger(AzurePersistence.class);
@@ -75,7 +77,7 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
 
     public AzurePersistence(CloudBlobDirectory segmentStoreDirectory) {
         this.segmentstoreDirectory = segmentStoreDirectory;
-        this.externalSegmentCache = new ExternalSegmentCache(FS_SEGMENT_CACHE_ENABLED, FS_SEGMENT_CACHE_LOCATION, FS_SEGMENT_CACHE_MAX_SIZE, REDIS_SEGMENT_CACHE_ENABLED, REDIS_HOST);
+        this.externalSegmentCache = new ExternalSegmentCache(FS_SEGMENT_CACHE_ENABLED, FS_SEGMENT_CACHE_LOCATION, FS_SEGMENT_CACHE_MAX_SIZE, REDIS_SEGMENT_CACHE_ENABLED, REDIS_HOST, REDIS_SEGMENT_CACHE_EXPIRE_SECONDS);
 
         BlobRequestOptions defaultRequestOptions = segmentStoreDirectory.getServiceClient().getDefaultRequestOptions();
         if (defaultRequestOptions.getRetryPolicyFactory() == null) {

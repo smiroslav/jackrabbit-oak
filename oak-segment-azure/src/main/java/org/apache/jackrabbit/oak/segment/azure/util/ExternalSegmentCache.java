@@ -19,16 +19,18 @@ public class ExternalSegmentCache {
     private final long cacheMaxSize;
     private final boolean useRedisCache;
     private final String redisHost;
+    private final int redisExpireSeconds;
 
     private AtomicLong cacheSize = new AtomicLong(0);
 
     public ExternalSegmentCache(boolean useFileSystemCache, String fileSystemCacheLocation, int fileSystemCacheMaxSize,
-                                boolean useRedisCache, String redisHost) {
+                                boolean useRedisCache, String redisHost, int redisExpireSeconds) {
         this.useFileSystemCache = useFileSystemCache;
         this.fileSystemCacheLocation = fileSystemCacheLocation;
         this.cacheMaxSize = fileSystemCacheMaxSize * 1024 * 1024;
         this.useRedisCache = useRedisCache;
         this.redisHost = redisHost;
+        this.redisExpireSeconds = redisExpireSeconds;
 
         File fsCacheDir = new File(fileSystemCacheLocation);
 
@@ -89,5 +91,9 @@ public class ExternalSegmentCache {
                 }
             }
         }
+    }
+
+    public int getRedisExpireSeconds() {
+        return redisExpireSeconds;
     }
 }

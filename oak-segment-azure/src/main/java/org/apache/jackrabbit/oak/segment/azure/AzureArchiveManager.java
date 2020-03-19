@@ -63,7 +63,7 @@ public class AzureArchiveManager implements SegmentArchiveManager {
     private final ExternalSegmentCache externalSegmentCache;
 
     public AzureArchiveManager(CloudBlobDirectory cloudBlobDirectory, IOMonitor ioMonitor, FileStoreMonitor fileStoreMonitor) {
-        this(cloudBlobDirectory, ioMonitor, fileStoreMonitor, new ExternalSegmentCache(false, "", 0, false, ""));
+        this(cloudBlobDirectory, ioMonitor, fileStoreMonitor, new ExternalSegmentCache(false, "", 0, false, "", 3600*24*2));
     }
 
     public AzureArchiveManager(CloudBlobDirectory cloudBlobDirectory, IOMonitor ioMonitor, FileStoreMonitor fileStoreMonitor, ExternalSegmentCache externalSegmentCache) {

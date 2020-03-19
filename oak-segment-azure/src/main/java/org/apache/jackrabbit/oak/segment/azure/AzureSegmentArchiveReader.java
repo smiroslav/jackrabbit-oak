@@ -173,6 +173,7 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
                 }
                 buffer.flip();
                 redis.set((REDIS_PREFIX + ":" + segmentFileName).getBytes(), bos.toByteArray());
+                redis.expire((REDIS_PREFIX + ":" + segmentFileName).getBytes(), externalSegmentCache.getRedisExpireSeconds());
             }
         }
     }

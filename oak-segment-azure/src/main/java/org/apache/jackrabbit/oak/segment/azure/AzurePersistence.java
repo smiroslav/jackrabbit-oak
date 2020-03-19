@@ -57,13 +57,15 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
 
     private static int TIMEOUT_INTERVAL = Integer.getInteger("segment.timeout.interval", 1);
 
-    private static boolean FS_SEGMENT_CACHE_ENABLED = Boolean.getBoolean("segment.fscache.enabled");
+    private static boolean FS_SEGMENT_CACHE_ENABLED = Boolean.getBoolean("oak.segment.fscache.enabled");
 
-    private static String FS_SEGMENT_CACHE_LOCATION = System.getProperty("segment.fscache.location", "/mnt/sandbox/cache");
+    private static String FS_SEGMENT_CACHE_LOCATION = System.getProperty("oak.segment.fscache.location", "/mnt/sandbox/cache");
 
-    private static int FS_SEGMENT_CACHE_MAX_SIZE = Integer.getInteger("segment.fscache.maxsize.mb", 512);
+    private static int FS_SEGMENT_CACHE_MAX_SIZE = Integer.getInteger("oak.segment.fscache.maxsize.mb", 512);
 
-    private static boolean REDIS_SEGMENT_CACHE_ENABLED = Boolean.getBoolean("segment.rediscache.enabled");
+    private static boolean REDIS_SEGMENT_CACHE_ENABLED = Boolean.getBoolean("oak.segment.rediscache.enabled");
+
+    private static String REDIS_HOST = System.getProperty("oak.segment.rediscache.host", "localhost");
 
     private static final Logger log = LoggerFactory.getLogger(AzurePersistence.class);
 
@@ -73,7 +75,7 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
 
     public AzurePersistence(CloudBlobDirectory segmentStoreDirectory) {
         this.segmentstoreDirectory = segmentStoreDirectory;
-        this.externalSegmentCache = new ExternalSegmentCache(FS_SEGMENT_CACHE_ENABLED, FS_SEGMENT_CACHE_LOCATION, FS_SEGMENT_CACHE_MAX_SIZE, REDIS_SEGMENT_CACHE_ENABLED);
+        this.externalSegmentCache = new ExternalSegmentCache(FS_SEGMENT_CACHE_ENABLED, FS_SEGMENT_CACHE_LOCATION, FS_SEGMENT_CACHE_MAX_SIZE, REDIS_SEGMENT_CACHE_ENABLED, REDIS_HOST);
 
         BlobRequestOptions defaultRequestOptions = segmentStoreDirectory.getServiceClient().getDefaultRequestOptions();
         if (defaultRequestOptions.getRetryPolicyFactory() == null) {

@@ -27,11 +27,11 @@ import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveEntry;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveReader;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.URISyntaxException;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,8 +42,14 @@ import java.util.concurrent.TimeUnit;
 import static java.lang.Boolean.getBoolean;
 import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.*;
 
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
+
 public class AzureSegmentArchiveReader implements SegmentArchiveReader {
     static final boolean OFF_HEAP = getBoolean("access.off.heap");
+
+    private static final String REDIS_PREFIX = "SEGMENT";
 
     private final CloudBlobDirectory archiveDirectory;
 
@@ -58,6 +64,9 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
 
     private static String FILE_CACHE_DIR = "/mnt/sandbox/cache/";
     private File tarCacheDir;
+
+    //private Jedis redis;
+    private  JedisPool redisPool;
 
     AzureSegmentArchiveReader(CloudBlobDirectory archiveDirectory, IOMonitor ioMonitor, ExternalSegmentCache externalSegmentCache) throws IOException {
         this.archiveDirectory = archiveDirectory;
@@ -79,6 +88,18 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
             if (!tarCacheDir.exists()) {
                 tarCacheDir.mkdirs();
             }
+        }
+
+        if (this.externalSegmentCache.isRedisCacheEnabled()) {
+            //this.redis = new Jedis(this.externalSegmentCache.getRedisHost());
+            int redisPort = 6379;
+            int redisTimeout = 50;
+            JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
+            jedisPoolConfig.setTestOnBorrow(true);
+            jedisPoolConfig.setMaxWaitMillis(50);
+            jedisPoolConfig.setMaxIdle(20);
+            jedisPoolConfig.setMaxTotal(200);
+            this.redisPool = new JedisPool(jedisPoolConfig, this.externalSegmentCache.getRedisHost(), redisPort, redisTimeout);
         }
     }
 
@@ -124,20 +145,46 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
             }
         }
 
-        //TODO check in Redis abd return if fond
         if (externalSegmentCache.isRedisCacheEnabled()) {
+            try(Jedis redis = redisPool.getResource()) {
+                final byte[] bytes = redis.get((REDIS_PREFIX + ":" + segmentFileName).getBytes());
 
+                if (bytes != null) {
+                    buffer = Buffer.wrap(bytes);
+                    buffer.put(bytes);
+                    buffer.flip();
+                    updateFsCache(buffer, segmentPath);
+                    return;
+                }
+            }
         }
 
         readBufferFully(getBlob(segmentFileName), buffer);
 
-        //TODO save segment in Redis cache
+        updateFsCache(buffer, segmentPath);
+        updateRedisCache(buffer, segmentFileName);
+    }
 
-        //save segment to cache
+    private void updateRedisCache(Buffer buffer, String segmentFileName) throws IOException {
+        if (externalSegmentCache.isRedisCacheEnabled()) {
+            final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            try (WritableByteChannel channel = Channels.newChannel(bos); Jedis redis = redisPool.getResource()) {
+                while (buffer.hasRemaining()) {
+                    buffer.write(channel);
+                }
+                buffer.flip();
+                redis.set((REDIS_PREFIX + ":" + segmentFileName).getBytes(), bos.toByteArray());
+            }
+        }
+    }
+
+    private void updateFsCache(Buffer buffer, String segmentPath) throws IOException {
         if (externalSegmentCache.isFileSystemCacheEnabled()) {
-            int fileSize = buffer.write(new FileOutputStream(segmentPath).getChannel());
-            buffer.flip();
-            externalSegmentCache.cacheSize().addAndGet(fileSize);
+            try(FileChannel channel = new FileOutputStream(segmentPath).getChannel()) {
+                int fileSize = buffer.write(channel);
+                buffer.flip();
+                externalSegmentCache.cacheSize().addAndGet(fileSize);
+            }
         }
     }
 

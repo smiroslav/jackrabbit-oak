@@ -94,7 +94,7 @@ public class AzureReadSegmentTest {
         @Override
         public SegmentArchiveManager createArchiveManager(boolean mmap, boolean offHeapAccess, IOMonitor ioMonitor,
                 FileStoreMonitor fileStoreMonitor, RemoteStoreMonitor remoteStoreMonitor) {
-            ExternalSegmentCache externalSegmentCache = new ExternalSegmentCache(false, "", 0, false);
+            ExternalSegmentCache externalSegmentCache = new ExternalSegmentCache(false, "", 0, false, "");
             return new AzureArchiveManager(segmentstoreDirectory, ioMonitor, fileStoreMonitor, externalSegmentCache) {
                 @Override
                 public SegmentArchiveReader open(String archiveName) throws IOException {

@@ -14,15 +14,17 @@ public class ExternalSegmentCache {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final long cacheMaxSize;
     private final boolean useRedisCache;
+    private final String redisHost;
 
     private AtomicLong cacheSize = new AtomicLong(0);
 
     public ExternalSegmentCache(boolean useFileSystemCache, String fileSystemCacheLocation, int fileSystemCacheMaxSize,
-                                boolean useRedisCache) {
+                                boolean useRedisCache, String redisHost) {
         this.useFileSystemCache = useFileSystemCache;
         this.fileSystemCacheLocation = fileSystemCacheLocation;
         this.cacheMaxSize = fileSystemCacheMaxSize * 1024 * 1024;
         this.useRedisCache = useRedisCache;
+        this.redisHost = redisHost;
 
         File fsCacheDir = new File(fileSystemCacheLocation);
 
@@ -49,6 +51,10 @@ public class ExternalSegmentCache {
 
     private boolean isCacheFull() {
         return cacheSize.get() >= this.cacheMaxSize;
+    }
+
+    public String getRedisHost() {
+        return redisHost;
     }
 
     /**

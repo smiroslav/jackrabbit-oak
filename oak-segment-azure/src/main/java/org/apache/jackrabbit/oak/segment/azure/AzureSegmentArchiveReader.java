@@ -150,7 +150,6 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
                 final byte[] bytes = redis.get((REDIS_PREFIX + ":" + segmentFileName).getBytes());
 
                 if (bytes != null) {
-                    buffer = Buffer.wrap(bytes);
                     buffer.put(bytes);
                     buffer.flip();
                     updateFsCache(buffer, segmentPath);

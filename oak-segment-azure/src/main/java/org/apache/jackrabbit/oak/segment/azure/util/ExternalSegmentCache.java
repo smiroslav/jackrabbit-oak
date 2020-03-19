@@ -1,6 +1,10 @@
 package org.apache.jackrabbit.oak.segment.azure.util;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -67,7 +71,16 @@ public class ExternalSegmentCache {
 
             File[] segments = cacheDir.listFiles();
 
-            Arrays.sort(segments, (file1, file2) -> file1.lastModified() >= file2.lastModified() ? 1 : -1);
+            Arrays.sort(segments, (file1, file2) -> {
+                try {
+                    FileTime lastAccessFile1 = Files.readAttributes(file1.toPath(), BasicFileAttributes.class).lastAccessTime();
+                    FileTime lastAccessFile2 = Files.readAttributes(file2.toPath(), BasicFileAttributes.class).lastAccessTime();
+                    return lastAccessFile1.compareTo(lastAccessFile2);
+                } catch (IOException e) {
+                    //TODO
+                }
+                return 0;
+            });
 
             for (File segment : segments) {
                 if (cacheSize.get() > cacheMaxSize * 0.66) {

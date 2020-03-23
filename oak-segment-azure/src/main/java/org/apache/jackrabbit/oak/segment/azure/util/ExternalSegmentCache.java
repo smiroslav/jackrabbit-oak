@@ -12,15 +12,18 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
-import java.util.Arrays;
+import java.util.Spliterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
 public class ExternalSegmentCache {
 
@@ -130,7 +133,7 @@ public class ExternalSegmentCache {
                         }
 
                         if (isCacheFull() && !fsCacheCleanupInPrgress.getAndSet(true)) {
-                            //cleanUpCache();
+                            cleanUpCache();
                             fsCacheCleanupInPrgress.set(false);
                         }
                     }
@@ -212,27 +215,36 @@ public class ExternalSegmentCache {
 
             File cacheDir = new File(fileSystemCacheLocation);
 
-            File[] segments = cacheDir.listFiles();
+            try {
+                Stream<Path> segmentsPaths = Files.walk(cacheDir.toPath())
+                        .sorted((path1, path2) -> {
+                            try {
+                                FileTime lastAccessFile1 = Files.readAttributes(path1, BasicFileAttributes.class).lastAccessTime();
+                                FileTime lastAccessFile2 = Files.readAttributes(path2, BasicFileAttributes.class).lastAccessTime();
+                                return lastAccessFile1.compareTo(lastAccessFile2);
+                            } catch (IOException e) {
+                                //TODO
+                            }
+                            return 0;
+                        })
+                        .filter(filePath -> !filePath.toFile().isDirectory());
 
-            Arrays.sort(segments, (file1, file2) -> {
-                try {
-                    FileTime lastAccessFile1 = Files.readAttributes(file1.toPath(), BasicFileAttributes.class).lastAccessTime();
-                    FileTime lastAccessFile2 = Files.readAttributes(file2.toPath(), BasicFileAttributes.class).lastAccessTime();
-                    return lastAccessFile1.compareTo(lastAccessFile2);
-                } catch (IOException e) {
-                    //TODO
-                }
-                return 0;
-            });
+                StreamConsumer.forEach(segmentsPaths, (path, breaker) -> {
 
-            for (File segment : segments) {
-                if (cacheSize.get() > cacheMaxSize * 0.66) {
-                    segment.delete();
-                    cacheSize.addAndGet(-segment.length());
-                }
+                    if (cacheSize.get() > cacheMaxSize * 0.66) {
+                        cacheSize.addAndGet(-path.toFile().length());
+                        path.toFile().delete();
+                    } else {
+                        breaker.stop();
+                    }
+                });
+            } catch (IOException e) {
+                //TODO
+                e.printStackTrace();
             }
         }
     }
+
 
     public boolean isFileSystemCacheEnabled() {
         return useFileSystemCache;
@@ -273,5 +285,32 @@ public class ExternalSegmentCache {
         }
 
 
+    }
+}
+
+class StreamConsumer {
+
+    public static class Breaker {
+        private boolean shouldBreak = false;
+
+        public void stop() {
+            shouldBreak = true;
+        }
+
+        boolean get() {
+            return shouldBreak;
+        }
+    }
+
+    public static <T> void forEach(Stream<T> stream, BiConsumer<T, Breaker> consumer) {
+        Spliterator<T> spliterator = stream.spliterator();
+        boolean hadNext = true;
+        Breaker breaker = new Breaker();
+
+        while (hadNext && !breaker.get()) {
+            hadNext = spliterator.tryAdvance(elem -> {
+                consumer.accept(elem, breaker);
+            });
+        }
     }
 }

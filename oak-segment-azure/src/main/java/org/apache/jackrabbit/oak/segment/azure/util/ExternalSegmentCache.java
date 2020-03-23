@@ -1,15 +1,31 @@
 package org.apache.jackrabbit.oak.segment.azure.util;
 
-import java.io.File;
-import java.io.IOException;
+import org.apache.commons.io.FileUtils;
+import org.apache.jackrabbit.oak.commons.Buffer;
+import org.apache.jackrabbit.oak.segment.azure.AzureUtilities;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
+
+import java.io.*;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class ExternalSegmentCache {
+
+    private static final String REDIS_PREFIX = "SEGMENT";
+    public static final int THREADS = Integer.getInteger("oak.segment.cache.threads", 10);
 
     private final boolean useFileSystemCache;
 
@@ -21,9 +37,18 @@ public class ExternalSegmentCache {
     private final String redisHost;
     private final int redisExpireSeconds;
 
-    private AtomicLong cacheSize = new AtomicLong(0);
+    private CachedSegmentRetriever fsSegments;
+    private CachedSegmentRetriever redisSegments;
+    private JedisPool redisPool;
 
-    public ExternalSegmentCache(boolean useFileSystemCache, String fileSystemCacheLocation, int fileSystemCacheMaxSize,
+    private AtomicLong cacheSize = new AtomicLong(0);
+    private AtomicBoolean fsCacheCleanupInPrgress = new AtomicBoolean(false);
+
+    private AtomicLong numberOfArchives = new AtomicLong(0);
+
+    private  ExecutorService executor;
+
+    public ExternalSegmentCache(boolean useFileSystemCache, String fileSystemCacheLocation, long fileSystemCacheMaxSize,
                                 boolean useRedisCache, String redisHost, int redisExpireSeconds) {
         this.useFileSystemCache = useFileSystemCache;
         this.fileSystemCacheLocation = fileSystemCacheLocation;
@@ -37,31 +62,147 @@ public class ExternalSegmentCache {
         if (!fsCacheDir.exists()) {
             fsCacheDir.mkdirs();
         }
+
+        cacheSize.set(FileUtils.sizeOfDirectory(fsCacheDir));
+
+        initSegmentRetrievers();
+
+        if (useFileSystemCache || useRedisCache) {
+            executor = Executors.newFixedThreadPool(THREADS);
+        }
     }
 
-    public boolean isFileSystemCacheEnabled() {
-        return useFileSystemCache;
+    private interface CachedSegmentRetriever {
+
+        /**
+         * Method returns true if segment is found in cache and loaded in Buffer
+         */
+        boolean loadSgment(String segmentPath, Buffer buffer) throws IOException;
+
+        /**
+         * Method that updates the cache with the content of the buffer
+         */
+        void updateCache(String segmentPath, Buffer buffer) throws IOException;
     }
 
-    public boolean isRedisCacheEnabled() {
-        return useRedisCache;
+    /**
+     * Segment loader used if segment is not found in cache
+     */
+    public interface ExternalSegmentLoader{
+        void loadSegment(Buffer buffer) throws IOException;
     }
 
-    public String getFileSystemCacheLocation() {
-        return fileSystemCacheLocation;
+    private void initSegmentRetrievers() {
+        fsSegments = new CachedSegmentRetriever() {
+            @Override
+            public boolean loadSgment(String segmentPath, Buffer buffer) throws IOException {
+                if (useFileSystemCache) {
+
+                    File segmentFile = new File(segmentPath);
+
+                    System.out.println("[INFO] segmentPath = " + segmentPath + " exists=" + segmentFile.exists());
+                    if (segmentFile.exists()) {
+                        try {
+                            AzureUtilities.readBufferFullyFromFile(segmentFile, buffer);
+                            return true;
+                        } catch (FileNotFoundException e) {
+                            System.out.println("[INFO] Segment deleted form file system: " + segmentPath);
+                        }
+                    }
+                }
+                return false;
+            }
+
+
+            @Override
+            public void updateCache(String segmentPath, Buffer buffer){
+                Buffer bufferCopy =  buffer.duplicate();
+
+                Runnable task = () -> {
+                    if (useFileSystemCache) {
+                        try(FileChannel channel = new FileOutputStream(segmentPath).getChannel()) {
+                            int fileSize = bufferCopy.write(channel);
+                            cacheSize.addAndGet(fileSize);
+                        } catch (FileNotFoundException e) {
+                            System.out.println("[ERROR] Error creating new file in segment cache: " + segmentPath);
+                        } catch (IOException e) {
+                            System.out.println("[ERROR] Error creating new file in segment cache: " + segmentPath);
+                        }
+
+                        if (isCacheFull() && !fsCacheCleanupInPrgress.getAndSet(true)) {
+                            //cleanUpCache();
+                            fsCacheCleanupInPrgress.set(false);
+                        }
+                    }
+                };
+
+                executor.execute(task);
+            }
+        };
+
+        if (useRedisCache) {
+            int redisPort = 6379;
+            int redisTimeout = 50;
+            JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
+            jedisPoolConfig.setTestOnBorrow(true);
+            jedisPoolConfig.setMaxWaitMillis(50);
+            jedisPoolConfig.setMaxIdle(20);
+            jedisPoolConfig.setMaxTotal(200);
+            this.redisPool = new JedisPool(jedisPoolConfig, redisHost, redisPort, redisTimeout);
+        }
+
+        redisSegments = new CachedSegmentRetriever() {
+            @Override
+            public boolean loadSgment(String segmentFileName, Buffer buffer) {
+                if (useRedisCache) {
+                    try(Jedis redis = redisPool.getResource()) {
+                        final byte[] bytes = redis.get((REDIS_PREFIX + ":" + segmentFileName).getBytes());
+
+                        if (bytes != null) {
+                            buffer.put(bytes);
+                            buffer.flip();
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public void updateCache(String segmentFileName, Buffer buffer) throws IOException {
+                Buffer bufferCopy =  buffer.duplicate();
+
+                Runnable task = () -> {
+                    if (useRedisCache) {
+                        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                        try (WritableByteChannel channel = Channels.newChannel(bos); Jedis redis = redisPool.getResource()) {
+                            while (bufferCopy.hasRemaining()) {
+                                bufferCopy.write(channel);
+                            }
+                            redis.set((REDIS_PREFIX + ":" + segmentFileName).getBytes(), bos.toByteArray());
+                            redis.expire((REDIS_PREFIX + ":" + segmentFileName).getBytes(), redisExpireSeconds);
+                        } catch (IOException e) {
+                            System.out.println("[ERROR] Error updating redis cache with entry for " + segmentFileName);
+                        }
+                    }
+                };
+
+                executor.execute(task);
+            }
+        };
     }
 
-    public AtomicLong cacheSize() {
-        return cacheSize;
+    public void loadSegment(String tarDirectoryPath, String segmentName, Buffer buffer, ExternalSegmentLoader externalSegmentLoader) throws IOException {
+        String fsCacheSegmentPath = tarDirectoryPath + File.separator + segmentName;
+        if (!fsSegments.loadSgment(fsCacheSegmentPath, buffer)) {
+            if(!redisSegments.loadSgment(segmentName, buffer)) {
+                externalSegmentLoader.loadSegment(buffer);
+                redisSegments.updateCache(segmentName, buffer);
+            }
+            fsSegments.updateCache(fsCacheSegmentPath, buffer);
+        }
     }
 
-    private boolean isCacheFull() {
-        return cacheSize.get() >= this.cacheMaxSize;
-    }
-
-    public String getRedisHost() {
-        return redisHost;
-    }
 
     /**
      *  Method that evicts least recently used segments form file system cache
@@ -93,7 +234,44 @@ public class ExternalSegmentCache {
         }
     }
 
-    public int getRedisExpireSeconds() {
-        return redisExpireSeconds;
+    public boolean isFileSystemCacheEnabled() {
+        return useFileSystemCache;
+    }
+
+    public boolean isRedisCacheEnabled() {
+        return useRedisCache;
+    }
+
+    public String getFileSystemCacheLocation() {
+        return fileSystemCacheLocation;
+    }
+
+    private boolean isCacheFull() {
+        return cacheSize.get() >= this.cacheMaxSize;
+    }
+
+    public void archiveReaderOpened() {
+        numberOfArchives.incrementAndGet();
+    }
+
+    public void archiveReaderClosed() {
+        long numOfOpenArchives = numberOfArchives.decrementAndGet();
+
+        if (numOfOpenArchives == 0) {
+            executor.shutdown();
+
+            try {
+                if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                    executor.shutdownNow();
+                    if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                        System.err.println("Segment cache thread pool did not terminate");
+                    }
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+
     }
 }

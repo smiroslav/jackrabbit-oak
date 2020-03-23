@@ -61,7 +61,7 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
 
     private static String FS_SEGMENT_CACHE_LOCATION = System.getProperty("oak.segment.fscache.location", "/mnt/sandbox/cache");
 
-    private static int FS_SEGMENT_CACHE_MAX_SIZE = Integer.getInteger("oak.segment.fscache.maxsize.mb", 512);
+    private static long FS_SEGMENT_CACHE_MAX_SIZE = Long.getLong("oak.segment.fscache.maxsize.mb", 512);
 
     private static boolean REDIS_SEGMENT_CACHE_ENABLED = Boolean.getBoolean("oak.segment.rediscache.enabled");
 

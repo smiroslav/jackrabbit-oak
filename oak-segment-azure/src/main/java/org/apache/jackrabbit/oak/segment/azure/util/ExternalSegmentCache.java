@@ -267,6 +267,7 @@ public class ExternalSegmentCache {
     }
 
     public void archiveReaderClosed() {
+        /*
         long numOfOpenArchives = numberOfArchives.decrementAndGet();
 
         if (numOfOpenArchives == 0) {
@@ -283,7 +284,7 @@ public class ExternalSegmentCache {
                 e.printStackTrace();
             }
         }
-
+        */
 
     }
 }

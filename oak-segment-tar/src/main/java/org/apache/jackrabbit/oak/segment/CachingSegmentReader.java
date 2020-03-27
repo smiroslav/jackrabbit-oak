@@ -131,6 +131,11 @@ public class CachingSegmentReader implements SegmentReader {
         });
     }
 
+    @Override
+    public Template readTemplate(long msb, long lsb, int recordNumber, Function<Integer, Template> loader) {
+        return templateCache.get(msb, lsb, recordNumber, loader);
+    }
+
     private static String safeEncode(String value) {
         try {
             return SafeEncode.safeEncode(value);

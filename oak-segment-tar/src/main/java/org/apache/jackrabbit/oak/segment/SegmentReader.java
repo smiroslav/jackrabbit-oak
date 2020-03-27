@@ -19,6 +19,7 @@
 
 package org.apache.jackrabbit.oak.segment;
 
+import com.google.common.base.Function;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -54,6 +55,8 @@ public interface SegmentReader {
      */
     @NotNull
     Template readTemplate(@NotNull RecordId id);
+
+    Template readTemplate(long msb, long lsb, int recordNumber, Function<Integer, Template> loader);
 
     /**
      * Read the node identified by {@code id}.

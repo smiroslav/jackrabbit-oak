@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import com.google.common.base.Function;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -123,7 +124,16 @@ public class SegmentNodeState extends Record implements NodeState {
         if (template == null) {
             // no problem if updated concurrently,
             // as each concurrent thread will just get the same value
-            template = reader.readTemplate(getTemplateId());
+            //template = reader.readTemplate(getTemplateId());
+
+            final Integer recordNumber = getRecordNumber();
+            template = reader.readTemplate(segmentId.getMostSignificantBits(), segmentId.getLeastSignificantBits(), recordNumber, new Function<Integer, Template>() {
+                @Override
+                public Template apply(Integer recordNumber) {
+                    RecordId recordId = getTemplateId();
+                    return segmentId.getSegment().readTemplate(recordId.getRecordNumber());
+                }
+            });
         }
         return template;
     }

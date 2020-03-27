@@ -41,7 +41,7 @@ class Record {
     /**
      * Identifier of the segment that contains this record.
      */
-    private final SegmentId segmentId;
+    protected final SegmentId segmentId;
 
     /**
      * Segment recordNumber of this record.

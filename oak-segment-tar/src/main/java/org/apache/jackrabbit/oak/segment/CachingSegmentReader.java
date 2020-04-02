@@ -22,6 +22,7 @@ package org.apache.jackrabbit.oak.segment;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.io.UnsupportedEncodingException;
+import java.util.concurrent.ExecutionException;
 
 import com.google.common.base.Function;
 import com.google.common.base.Supplier;
@@ -65,6 +66,8 @@ public class CachingSegmentReader implements SegmentReader {
 
     private final MeterStats readStats;
 
+    private final NodeStateCache nodeStateCache;
+
     /**
      * Create a new instance based on the supplied arguments.
      * @param writer          A {@code Supplier} for a the {@code SegmentWriter} used by the segment
@@ -87,6 +90,7 @@ public class CachingSegmentReader implements SegmentReader {
         stringCache = new StringCache(stringCacheMB * 1024 * 1024);
         templateCache = new TemplateCache(templateCacheMB * 1024 * 1024);
         this.readStats = readStats;
+        nodeStateCache = new NodeStateCache(writer, blobStore, readStats, this);
     }
 
     /**
@@ -149,6 +153,12 @@ public class CachingSegmentReader implements SegmentReader {
     public SegmentNodeState readNode(@NotNull RecordId id) {
         if (LOG.isTraceEnabled()) {
             LOG.trace("{} n? {}", Thread.currentThread().getId(), id);
+        }
+
+        try {
+            return nodeStateCache.getNodeState(id, () -> new SegmentNodeState(this, writer, blobStore, id, readStats));
+        } catch (ExecutionException e) {
+            LOG.error("Error reading node state cache", e);
         }
         return new SegmentNodeState(this, writer, blobStore, id, readStats);
     }

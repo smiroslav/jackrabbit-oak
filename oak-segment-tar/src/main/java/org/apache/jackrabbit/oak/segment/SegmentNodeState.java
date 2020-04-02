@@ -124,16 +124,16 @@ public class SegmentNodeState extends Record implements NodeState {
         if (template == null) {
             // no problem if updated concurrently,
             // as each concurrent thread will just get the same value
-            //template = reader.readTemplate(getTemplateId());
+            template = reader.readTemplate(getTemplateId());
 
-            final Integer recordNumber = getRecordNumber();
-            template = reader.readTemplate(segmentId.getMostSignificantBits(), segmentId.getLeastSignificantBits(), recordNumber, new Function<Integer, Template>() {
-                @Override
-                public Template apply(Integer recordNumber) {
-                    RecordId recordId = getTemplateId();
-                    return segmentId.getSegment().readTemplate(recordId.getRecordNumber());
-                }
-            });
+//            final Integer recordNumber = getRecordNumber();
+//            template = reader.readTemplate(segmentId.getMostSignificantBits(), segmentId.getLeastSignificantBits(), recordNumber, new Function<Integer, Template>() {
+//                @Override
+//                public Template apply(Integer recordNumber) {
+//                    RecordId recordId = getTemplateId();
+//                    return segmentId.getSegment().readTemplate(recordId.getRecordNumber());
+//                }
+//            });
         }
         return template;
     }

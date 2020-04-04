@@ -37,12 +37,17 @@ import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.MISSING_NO
 import static org.apache.jackrabbit.oak.spi.state.AbstractNodeState.checkValidName;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Function;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.Buffer;
@@ -78,6 +83,10 @@ public class SegmentNodeState extends Record implements NodeState {
 
     private volatile Template template = null;
 
+    private final Cache<String, PropertyState> propertyCache;
+
+    private HashMap<String, RecordId> propertyRecords = new HashMap<>();
+
     SegmentNodeState(
         @NotNull SegmentReader reader,
         @NotNull Supplier<SegmentWriter> writer,
@@ -90,6 +99,22 @@ public class SegmentNodeState extends Record implements NodeState {
         this.writer = checkNotNull(memoize(writer));
         this.blobStore = blobStore;
         this.readStats = readStats;
+
+        propertyCache = CacheBuilder.newBuilder()
+                .concurrencyLevel(16)
+                .maximumSize(20)
+                .build();
+    }
+
+    private RecordId getPropertyRecordId(String propertyName, PropertyTemplate propertyTemplate) {
+        RecordId propertyRecordId = propertyRecords.get(propertyName);
+
+        if(propertyRecordId == null) {
+            Segment segment = getSegment();
+            propertyRecordId = getRecordId(segment, getTemplate(), propertyTemplate);
+            propertyRecords.put(propertyName, propertyRecordId);
+        }
+        return propertyRecordId;
     }
 
     public SegmentNodeState(
@@ -239,9 +264,12 @@ public class SegmentNodeState extends Record implements NodeState {
         PropertyTemplate propertyTemplate =
                 template.getPropertyTemplate(name);
         if (propertyTemplate != null) {
-            Segment segment = getSegment();
-            RecordId id = getRecordId(segment, template, propertyTemplate);
-            return reader.readProperty(id, propertyTemplate);
+//            Segment segment = getSegment();
+//            RecordId id = getRecordId(segment, template, propertyTemplate);
+            RecordId id = getPropertyRecordId(name, propertyTemplate);
+
+            return getPropertyState(id, propertyTemplate);
+
         } else {
             return null;
         }
@@ -284,13 +312,28 @@ public class SegmentNodeState extends Record implements NodeState {
 
         if (propertyTemplates.length > 0) {
             ListRecord pIds = new ListRecord(segment.readRecordId(getRecordNumber(), 0, ids), propertyTemplates.length);
+            AtomicInteger index = new AtomicInteger(0);
             for (int i = 0; i < propertyTemplates.length; i++) {
                 RecordId propertyId = pIds.getEntry(i);
-                list.add(reader.readProperty(propertyId, propertyTemplates[i]));
+                PropertyState propertyState = null;
+                PropertyTemplate propertyTemplate = propertyTemplates[index.getAndIncrement()];
+                propertyState = getPropertyState(propertyId, propertyTemplate);
+                list.add(propertyState);
             }
         }
 
         return list;
+    }
+
+    private PropertyState getPropertyState(RecordId propertyId, PropertyTemplate propertyTemplate) {
+        PropertyState propertyState;
+        try {
+            propertyState =  propertyCache.get(propertyId.toString() + propertyTemplate.toString(), () ->
+                    reader.readProperty(propertyId, propertyTemplate));
+        } catch (ExecutionException e) {
+            propertyState =  reader.readProperty(propertyId, propertyTemplate);
+        }
+        return propertyState;
     }
 
     @Override
@@ -369,8 +412,10 @@ public class SegmentNodeState extends Record implements NodeState {
             return null;
         }
 
-        Segment segment = getSegment();
-        RecordId id = getRecordId(segment, template, propertyTemplate);
+//        Segment segment = getSegment();
+//        RecordId id = getRecordId(segment, template, propertyTemplate);
+
+        RecordId id = getPropertyRecordId(name, propertyTemplate);
         return reader.readString(id);
     }
 
@@ -407,9 +452,11 @@ public class SegmentNodeState extends Record implements NodeState {
             return emptyList();
         }
 
-        Segment segment = getSegment();
-        RecordId id = getRecordId(segment, template, propertyTemplate);
-        segment = id.getSegment();
+//        Segment segment = getSegment();
+//        RecordId id = getRecordId(segment, template, propertyTemplate);
+
+        RecordId id = getPropertyRecordId(name, propertyTemplate);
+        Segment segment = id.getSegment();
         int size = segment.readInt(id.getRecordNumber());
         if (size == 0) {
             return emptyList();

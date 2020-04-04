@@ -18,7 +18,7 @@ public class NodeStateCache{
     public NodeStateCache(@NotNull Supplier<SegmentWriter> writer, @Nullable BlobStore blobStore, MeterStats readStats, SegmentReader segmentReader) {
         this.cache = CacheBuilder.newBuilder()
                 .concurrencyLevel(16)
-                .maximumSize(10000000)
+                .maximumSize(100000)
                 .build();
     }
 

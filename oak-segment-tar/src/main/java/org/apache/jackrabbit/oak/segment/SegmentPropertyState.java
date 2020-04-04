@@ -70,6 +70,8 @@ public class SegmentPropertyState extends Record implements PropertyState {
     @NotNull
     private final Type<?> type;
 
+    private ListRecord values;
+
     SegmentPropertyState(@NotNull SegmentReader reader, @NotNull RecordId id,
                          @NotNull String name, @NotNull Type<?> type) {
         super(id);
@@ -95,6 +97,12 @@ public class SegmentPropertyState extends Record implements PropertyState {
         return new ListRecord(listId, size);
     }
 
+    private ListRecord getValues() {
+        if(this.values == null) {
+            this.values = getValueList(getSegment());
+        }
+        return values;
+    }
     Map<String, RecordId> getValueRecords() {
         if (getType().tag() == PropertyType.BINARY) {
             return emptyMap();
@@ -102,8 +110,8 @@ public class SegmentPropertyState extends Record implements PropertyState {
 
         Map<String, RecordId> map = newHashMap();
 
-        Segment segment = getSegment();
-        ListRecord values = getValueList(segment);
+        //Segment segment = getSegment();
+        ListRecord values = getValues();
         for (int i = 0; i < values.size(); i++) {
             RecordId valueId = values.getEntry(i);
             String value = reader.readString(valueId);
@@ -140,10 +148,10 @@ public class SegmentPropertyState extends Record implements PropertyState {
 
     @Override @NotNull @SuppressWarnings("unchecked")
     public <T> T getValue(Type<T> type) {
-        Segment segment = getSegment();
+        //Segment segment = getSegment();
         if (isArray()) {
             checkState(type.isArray());
-            ListRecord values = getValueList(segment);
+            ListRecord values = getValues();
             if (values.size() == 0) {
                 return (T) emptyList();
             } else if (values.size() == 1) {
@@ -177,8 +185,8 @@ public class SegmentPropertyState extends Record implements PropertyState {
         checkNotNull(type);
         checkArgument(!type.isArray(), "Type must not be an array type");
 
-        Segment segment = getSegment();
-        ListRecord values = getValueList(segment);
+        //Segment segment = getSegment();
+        ListRecord values = getValues();
         checkElementIndex(index, values.size());
         return getValue(values.getEntry(index), type);
     }
@@ -217,7 +225,7 @@ public class SegmentPropertyState extends Record implements PropertyState {
 
     @Override
     public long size(int index) {
-        ListRecord values = getValueList(getSegment());
+        ListRecord values = getValues();
         checkElementIndex(index, values.size());
         RecordId entry = values.getEntry(index);
 

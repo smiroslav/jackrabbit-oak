@@ -54,6 +54,7 @@ public class MapRecord extends Record {
 
     @NotNull
     private final SegmentReader reader;
+    private int head;
 
     /**
      * Generates a hash code for the value, using a random number generator
@@ -100,20 +101,23 @@ public class MapRecord extends Record {
     MapRecord(@NotNull SegmentReader reader, @NotNull RecordId id) {
         super(id);
         this.reader = checkNotNull(reader);
+
+        this.head = getSegment().readInt(getRecordNumber());
     }
 
     boolean isLeaf() {
-        Segment segment = getSegment();
-        int head = segment.readInt(getRecordNumber());
+        //Segment segment = getSegment();
+        //int head = segment.readInt(getRecordNumber());
         if (isDiff(head)) {
-            RecordId base = segment.readRecordId(getRecordNumber(), 8, 2);
+            RecordId base = getSegment().readRecordId(getRecordNumber(), 8, 2);
             return reader.readMap(base).isLeaf();
         }
         return !isBranch(head);
     }
 
     public boolean isDiff() {
-        return isDiff(getSegment().readInt(getRecordNumber()));
+        //return isDiff(getSegment().readInt(getRecordNumber()));
+        return isDiff(head);
     }
 
     MapRecord[] getBuckets() {
@@ -145,10 +149,10 @@ public class MapRecord extends Record {
     }
 
     int size() {
-        Segment segment = getSegment();
-        int head = segment.readInt(getRecordNumber());
+//        Segment segment = getSegment();
+//        int head = segment.readInt(getRecordNumber());
         if (isDiff(head)) {
-            RecordId base = segment.readRecordId(getRecordNumber(), 8, 2);
+            RecordId base = getSegment().readRecordId(getRecordNumber(), 8, 2);
             return reader.readMap(base).size();
         }
         return getSize(head);

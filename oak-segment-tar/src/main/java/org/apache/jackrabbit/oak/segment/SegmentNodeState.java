@@ -86,6 +86,9 @@ public class SegmentNodeState extends Record implements NodeState {
     private final Cache<String, PropertyState> propertyCache;
 
     private HashMap<String, RecordId> propertyRecords = new HashMap<>();
+    private MapRecord childNodeMap;
+    private RecordId chldNodeRecordId;
+    private ListRecord propertyListRecord;
 
     SegmentNodeState(
         @NotNull SegmentReader reader,
@@ -159,13 +162,28 @@ public class SegmentNodeState extends Record implements NodeState {
 //                    return segmentId.getSegment().readTemplate(recordId.getRecordNumber());
 //                }
 //            });
+
+            Segment segment = getSegment();
+            int ids = 2;
+            if (template.getChildName() != Template.ZERO_CHILD_NODES) {
+                ids++;
+            }
+
+
+            if (template.getPropertyTemplates().length > 0) {
+                propertyListRecord = new ListRecord(segment.readRecordId(getRecordNumber(), 0, ids), template.getPropertyTemplates().length);
+            }
         }
         return template;
     }
 
     MapRecord getChildNodeMap() {
-        Segment segment = getSegment();
-        return reader.readMap(segment.readRecordId(getRecordNumber(), 0, 2));
+        if (this.childNodeMap == null) {
+            Segment segment = getSegment();
+            childNodeMap =  reader.readMap(segment.readRecordId(getRecordNumber(), 0, 2));
+        }
+
+        return childNodeMap;
     }
 
     @NotNull
@@ -304,17 +322,17 @@ public class SegmentNodeState extends Record implements NodeState {
             list.add(mixinTypes);
         }
 
-        Segment segment = getSegment();
-        int ids = 2;
-        if (template.getChildName() != Template.ZERO_CHILD_NODES) {
-            ids++;
-        }
+//        Segment segment = getSegment();
+//        int ids = 2;
+//        if (template.getChildName() != Template.ZERO_CHILD_NODES) {
+//            ids++;
+//        }
 
         if (propertyTemplates.length > 0) {
-            ListRecord pIds = new ListRecord(segment.readRecordId(getRecordNumber(), 0, ids), propertyTemplates.length);
+            //ListRecord pIds = new ListRecord(segment.readRecordId(getRecordNumber(), 0, ids), propertyTemplates.length);
             AtomicInteger index = new AtomicInteger(0);
             for (int i = 0; i < propertyTemplates.length; i++) {
-                RecordId propertyId = pIds.getEntry(i);
+                RecordId propertyId = propertyListRecord.getEntry(i);
                 PropertyState propertyState = null;
                 PropertyTemplate propertyTemplate = propertyTemplates[index.getAndIncrement()];
                 propertyState = getPropertyState(propertyId, propertyTemplate);
@@ -512,11 +530,18 @@ public class SegmentNodeState extends Record implements NodeState {
             }
         } else if (childName != Template.ZERO_CHILD_NODES
                 && childName.equals(name)) {
-            RecordId childNodeId = getSegment().readRecordId(getRecordNumber(), 0, 2);
+            RecordId childNodeId = getChildNodeId();
             return reader.readNode(childNodeId);
         }
         checkValidName(name);
         return MISSING_NODE;
+    }
+
+    private RecordId getChildNodeId() {
+        if(this.chldNodeRecordId == null) {
+            this.chldNodeRecordId = getSegment().readRecordId(getRecordNumber(), 0, 2);
+        }
+        return this.chldNodeRecordId;
     }
 
     @Override @NotNull

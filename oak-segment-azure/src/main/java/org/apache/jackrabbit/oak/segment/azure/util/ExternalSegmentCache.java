@@ -3,6 +3,8 @@ package org.apache.jackrabbit.oak.segment.azure.util;
 import org.apache.commons.io.FileUtils;
 import org.apache.jackrabbit.oak.commons.Buffer;
 import org.apache.jackrabbit.oak.segment.azure.AzureUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
@@ -26,6 +28,8 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 public class ExternalSegmentCache {
+
+    private static final Logger logger = LoggerFactory.getLogger(ExternalSegmentCache.class);
 
     private static final String REDIS_PREFIX = "SEGMENT";
     public static final int THREADS = Integer.getInteger("oak.segment.cache.threads", 10);
@@ -103,13 +107,13 @@ public class ExternalSegmentCache {
 
                     File segmentFile = new File(segmentPath);
 
-                    System.out.println("[INFO] segmentPath = " + segmentPath + " exists=" + segmentFile.exists());
+                    logger.trace("segmentPath = {} exists={}",segmentPath, segmentFile.exists());
                     if (segmentFile.exists()) {
                         try {
                             AzureUtilities.readBufferFullyFromFile(segmentFile, buffer);
                             return true;
                         } catch (FileNotFoundException e) {
-                            System.out.println("[INFO] Segment deleted form file system: " + segmentPath);
+                            logger.info("Segment deleted form file system: {}", segmentPath);
                         }
                     }
                 }
@@ -119,27 +123,27 @@ public class ExternalSegmentCache {
 
             @Override
             public void updateCache(String segmentPath, Buffer buffer){
-                Buffer bufferCopy =  buffer.duplicate();
+                if (useFileSystemCache) {
+                    Buffer bufferCopy =  buffer.duplicate();
 
-                Runnable task = () -> {
-                    if (useFileSystemCache) {
-                        try(FileChannel channel = new FileOutputStream(segmentPath).getChannel()) {
-                            int fileSize = bufferCopy.write(channel);
-                            cacheSize.addAndGet(fileSize);
-                        } catch (FileNotFoundException e) {
-                            System.out.println("[ERROR] Error creating new file in segment cache: " + segmentPath);
-                        } catch (IOException e) {
-                            System.out.println("[ERROR] Error creating new file in segment cache: " + segmentPath);
-                        }
+                    Runnable task = () -> {
+                            try(FileChannel channel = new FileOutputStream(segmentPath).getChannel()) {
+                                int fileSize = bufferCopy.write(channel);
+                                cacheSize.addAndGet(fileSize);
+                            } catch (FileNotFoundException e) {
+                                logger.error("Error creating new file in segment cache: {}", segmentPath);
+                            } catch (IOException e) {
+                                logger.error("Error creating new file in segment cache: {}", segmentPath);
+                            }
 
-                        if (isCacheFull() && !fsCacheCleanupInPrgress.getAndSet(true)) {
-                            cleanUpCache();
-                            fsCacheCleanupInPrgress.set(false);
-                        }
-                    }
-                };
+                            if (isCacheFull() && !fsCacheCleanupInPrgress.getAndSet(true)) {
+                                cleanUpCache();
+                                fsCacheCleanupInPrgress.set(false);
+                            }
+                    };
 
-                executor.execute(task);
+                    executor.execute(task);
+                }
             }
         };
 
@@ -173,10 +177,10 @@ public class ExternalSegmentCache {
 
             @Override
             public void updateCache(String segmentFileName, Buffer buffer) throws IOException {
-                Buffer bufferCopy =  buffer.duplicate();
+                if (useRedisCache) {
+                    Buffer bufferCopy = buffer.duplicate();
 
-                Runnable task = () -> {
-                    if (useRedisCache) {
+                    Runnable task = () -> {
                         final ByteArrayOutputStream bos = new ByteArrayOutputStream();
                         try (WritableByteChannel channel = Channels.newChannel(bos); Jedis redis = redisPool.getResource()) {
                             while (bufferCopy.hasRemaining()) {
@@ -185,12 +189,12 @@ public class ExternalSegmentCache {
                             redis.set((REDIS_PREFIX + ":" + segmentFileName).getBytes(), bos.toByteArray());
                             redis.expire((REDIS_PREFIX + ":" + segmentFileName).getBytes(), redisExpireSeconds);
                         } catch (IOException e) {
-                            System.out.println("[ERROR] Error updating redis cache with entry for " + segmentFileName);
+                            logger.error("Error updating redis cache with entry  for {}", segmentFileName);
                         }
-                    }
-                };
+                    };
 
-                executor.execute(task);
+                    executor.execute(task);
+                }
             }
         };
     }

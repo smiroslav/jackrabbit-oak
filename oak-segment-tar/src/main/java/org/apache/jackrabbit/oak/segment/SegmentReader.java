@@ -56,8 +56,6 @@ public interface SegmentReader {
     @NotNull
     Template readTemplate(@NotNull RecordId id);
 
-    Template readTemplate(long msb, long lsb, int recordNumber, Function<Integer, Template> loader);
-
     /**
      * Read the node identified by {@code id}.
      * @throws SegmentNotFoundException  see class comment for exception semantics

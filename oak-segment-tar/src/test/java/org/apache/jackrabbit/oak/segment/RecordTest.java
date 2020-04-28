@@ -18,6 +18,32 @@
  */
 package org.apache.jackrabbit.oak.segment;
 
+import com.google.common.collect.ImmutableList;
+import org.apache.jackrabbit.oak.api.Blob;
+import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.segment.file.FileStore;
+import org.apache.jackrabbit.oak.segment.memory.MemoryStore;
+import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.hamcrest.core.IsCollectionContaining;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Random;
+import java.util.stream.Collectors;
+
 import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.Math.min;
 import static java.util.Collections.singletonList;
@@ -29,29 +55,8 @@ import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE
 import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreBuilder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
-
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
-import java.util.Random;
-
-import org.apache.jackrabbit.oak.api.Blob;
-import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.segment.file.FileStore;
-import org.apache.jackrabbit.oak.segment.memory.MemoryStore;
-import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
-import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
-import org.apache.jackrabbit.oak.spi.state.NodeState;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 public class RecordTest {
     @Rule
@@ -236,4 +241,44 @@ public class RecordTest {
         assertNotNull(state.getProperty("jcr:mixinTypes"));
     }
 
+    @Test
+    public void testGetValuesAsStrings() throws IOException {
+
+        NodeState before = EMPTY_NODE.builder()
+                .setProperty("foo", ImmutableList.of("one", "two", "three"), STRINGS)
+                .getNodeState();
+
+        NodeState after = new SegmentNodeState(store.getReader(), writer, store.getBlobStore(), writer.writeNode(before));
+
+        Iterable<String> strings = after.getStrings("foo");
+
+        List<String> result = ImmutableList.copyOf(strings);
+
+        assertEquals(3, result.size());
+        assertThat(result, IsCollectionContaining.hasItems("one", "two", "three"));
+    }
+
+    @Test
+    public void testGetChildNodeEntries() throws IOException {
+        NodeBuilder builder = EMPTY_NODE.builder()
+                .setProperty("foo", ImmutableList.of("one", "two", "three"), STRINGS);
+
+        builder.child("1").setProperty("name", "child1");
+
+        NodeState state = new SegmentNodeState(store.getReader(), writer, store.getBlobStore(), writer.writeNode(builder.getNodeState()));
+
+        Iterable<? extends ChildNodeEntry> childNodes = state.getChildNodeEntries();
+        ImmutableList<? extends ChildNodeEntry> childNodesList = ImmutableList.copyOf(childNodes);
+        assertEquals(1, childNodesList.size());
+        assertEquals("child1", childNodesList.get(0).getNodeState().getString("name"));
+
+        //test for many child nodes
+        builder.child("2").setProperty("name", "child2");
+        state = new SegmentNodeState(store.getReader(), writer, store.getBlobStore(), writer.writeNode(builder.getNodeState()));
+        childNodes = state.getChildNodeEntries();
+        childNodesList = ImmutableList.copyOf(childNodes);
+        assertEquals(2, childNodesList.size());
+        List<String> propValues = childNodesList.stream().map(e -> e.getNodeState().getString("name")).collect(Collectors.toList());
+        assertThat(propValues, IsCollectionContaining.hasItems("child1", "child2"));
+    }
 }

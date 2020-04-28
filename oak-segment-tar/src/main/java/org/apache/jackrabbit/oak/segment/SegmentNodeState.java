@@ -32,6 +32,7 @@ import static org.apache.jackrabbit.oak.api.Type.NAME;
 import static org.apache.jackrabbit.oak.api.Type.NAMES;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.api.Type.STRINGS;
+import static org.apache.jackrabbit.oak.commons.StringUtils.estimateMemoryUsage;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.MISSING_NODE;
 import static org.apache.jackrabbit.oak.spi.state.AbstractNodeState.checkValidName;
@@ -49,7 +50,10 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.cache.CacheValue;
 import org.apache.jackrabbit.oak.commons.Buffer;
+import org.apache.jackrabbit.oak.commons.json.JsopBuilder;
+import org.apache.jackrabbit.oak.json.JsonSerializer;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
@@ -61,12 +65,17 @@ import org.apache.jackrabbit.oak.stats.MeterStats;
 import org.apache.jackrabbit.oak.stats.NoopStats;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A record of type "NODE". This class can read a node record from a segment. It
  * currently doesn't cache data (but the template is fully loaded).
  */
-public class SegmentNodeState extends Record implements NodeState {
+public class SegmentNodeState extends Record implements NodeState, CacheValue {
+
+    private static final Logger log = LoggerFactory.getLogger(SegmentNodeState.class);
+
     @NotNull
     private final SegmentReader reader;
 
@@ -88,6 +97,8 @@ public class SegmentNodeState extends Record implements NodeState {
     private MapRecord childNodeMap;
     private RecordId chldNodeRecordId;
     private ListRecord propertyListRecord;
+
+    private int memory;
 
     SegmentNodeState(
         @NotNull SegmentReader reader,
@@ -780,6 +791,52 @@ public class SegmentNodeState extends Record implements NodeState {
     @Override
     public String toString() {
         return AbstractNodeState.toString(this);
+    }
+
+    @Override
+    public int getMemory() {
+        long size = memory;
+        if (size == 0) {
+            for (PropertyState propState : getProperties()) {
+
+                if (propState.getType() != Type.BINARY
+                        && propState.getType() != Type.BINARIES) {
+                    for (int i = 0; i < propState.count(); i++) {
+                        // size() returns length of string
+                        // shallow memory:
+                        // - 8 bytes per reference in values list
+                        // - 48 bytes per string
+                        // double usage per property because of parsed PropertyState
+                        size += (56 + propState.size(i) * 2) * 2;
+                    }
+                } else {
+                    // calculate size based on blobId value
+                    // referencing the binary in the blob store
+                    // double the size because the parsed PropertyState
+                    // will have a similarly sized blobId as well
+                    size += (long) estimateMemoryUsage(asString(propState)) * 2;
+                }
+            }
+            if (size > Integer.MAX_VALUE) {
+                log.debug("Estimated memory footprint larger than Integer.MAX_VALUE: {}.", size);
+                size = Integer.MAX_VALUE;
+            }
+            memory = (int) size;
+        }
+        return (int) size;
+    }
+
+    private String asString(PropertyState prop) {
+//        if (prop == null) {
+//            return null;
+//        } else if (prop instanceof SegmentPropertyState) {
+//            return ((SegmentPropertyState) prop).getValue();
+//        }
+//        JsopBuilder builder = new JsopBuilder();
+//        new JsonSerializer(builder, store.getBlobSerializer()).serialize(prop);
+//        return builder.toString();
+
+        return "";
     }
 
     private class PropertyRecordId {

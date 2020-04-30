@@ -380,7 +380,12 @@
             <artifactId>mockito-core</artifactId>
             <scope>test</scope>
         </dependency>
-        
+        <dependency>
+            <groupId>org.openjdk.jol</groupId>
+            <artifactId>jol-core</artifactId>
+            <version>0.10</version>
+            <scope>test</scope>
+        </dependency>
         <!-- FIXME: test dependency of oak-core due to usage of InitialContent for test setup -->
         <dependency>
             <groupId>org.apache.jackrabbit</groupId>

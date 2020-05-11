@@ -795,6 +795,7 @@ public class SegmentNodeState extends Record implements NodeState, CacheValue {
 
     @Override
     public int getMemory() {
+
         long size = memory;
         if (size == 0) {
             for (PropertyState propState : getProperties()) {
@@ -830,7 +831,8 @@ public class SegmentNodeState extends Record implements NodeState, CacheValue {
 //        if (prop == null) {
 //            return null;
 //        } else if (prop instanceof SegmentPropertyState) {
-//            return ((SegmentPropertyState) prop).getValue();
+//            //return ((SegmentPropertyState) prop).getValue();
+//            return prop.getValue(Type.BINARY).length();
 //        }
 //        JsopBuilder builder = new JsopBuilder();
 //        new JsonSerializer(builder, store.getBlobSerializer()).serialize(prop);

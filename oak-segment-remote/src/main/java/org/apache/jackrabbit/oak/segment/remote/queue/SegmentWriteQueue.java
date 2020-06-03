@@ -71,13 +71,11 @@ public class SegmentWriteQueue implements Closeable {
         for (int i = 0; i < threadNo; i++) {
             executor.submit(this::mainLoop);
         }
-        executor.submit(this::emergencyLoop);
     }
 
     private void mainLoop() {
         while (!shutdown) {
             try {
-                waitWhileBroken();
                 if (shutdown) {
                     break;
                 }
@@ -89,6 +87,11 @@ public class SegmentWriteQueue implements Closeable {
                     queue.put(segment);
                 } catch (InterruptedException e1) {
                     log.error("Can't re-add the segment {} to the queue. It'll be dropped.", segment.getUuid(), e1);
+
+                    synchronized (segmentsByUUID) {
+                        segmentsByUUID.remove(segment.getUuid());
+                        segmentsByUUID.notifyAll();
+                    }
                 }
             }
         }
@@ -109,8 +112,7 @@ public class SegmentWriteQueue implements Closeable {
     private void consume(SegmentWriteAction segment) throws SegmentConsumeException {
         try {
             segment.passTo(writer);
-        } catch (IOException e) {
-            setBroken(true);
+        } catch (IOException | RuntimeException e) {
             throw new SegmentConsumeException(segment, e);
         }
         synchronized (segmentsByUUID) {
@@ -118,39 +120,6 @@ public class SegmentWriteQueue implements Closeable {
             segmentsByUUID.notifyAll();
         }
         setBroken(false);
-    }
-
-    private void emergencyLoop() {
-        while (!shutdown) {
-            waitUntilBroken();
-            if (shutdown) {
-                break;
-            }
-
-            boolean success = false;
-            SegmentWriteAction segmentToRetry = null;
-            do {
-                try {
-                    if (segmentToRetry == null) {
-                        consume();
-                    } else {
-                        consume(segmentToRetry);
-                    }
-                    success = true;
-                } catch (SegmentConsumeException e) {
-                    segmentToRetry = e.segment;
-                    log.error("Can't persist the segment {}", segmentToRetry.getUuid(), e.getCause());
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e1) {
-                        log.warn("Interrupted", e);
-                    }
-                    if (shutdown) {
-                        log.error("Shutdown initiated. The segment {} will be dropped.", segmentToRetry.getUuid());
-                    }
-                }
-            } while (!success && !shutdown);
-        }
     }
 
     public void addToQueue(RemoteSegmentArchiveEntry indexEntry, byte[] data, int offset, int size) throws IOException {
@@ -271,7 +240,7 @@ public class SegmentWriteQueue implements Closeable {
 
         private final SegmentWriteAction segment;
 
-        public SegmentConsumeException(SegmentWriteAction segment, IOException cause) {
+        public SegmentConsumeException(SegmentWriteAction segment, Exception cause) {
             super(cause);
             this.segment = segment;
         }

@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -279,6 +280,43 @@ public class SegmentWriteQueueTest {
             assertTrue("Segments should be persisted immediately", delay < 1000);
             lastAttempt = writeAttempts.get(i);
         }
+    }
+
+    @Test
+    public void testRuntimeExceptionInSegmentConsumer() throws InterruptedException, NoSuchFieldException, IOException {
+
+        queue = new SegmentWriteQueue((tarEntry, data, offset, size) -> {
+
+            //simulate runtime exception that can happen while writing to the remote repository
+            throw new RuntimeException();
+        });
+
+        queue.addToQueue(tarEntry(0), EMPTY_DATA, 0, 0);
+
+        AtomicBoolean flushFinished = new AtomicBoolean(false);
+        Thread flusher = new Thread(() -> {
+            try {
+                queue.flush();
+                flushFinished.set(true);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+        flusher.start();
+
+        Thread.sleep(1000);
+
+        assertFalse("Segment queue should not be empty", flushFinished.get());
+
+        //Provide new instance for segment consumer that does not throw runtime exception while writing to remote repository
+        FieldSetter.setField(
+                queue,
+                queue.getClass().getDeclaredField("writer"),
+                (SegmentWriteQueue.SegmentConsumer) (indexEntry, data, offset, size) -> {/*empty consumer*/});
+
+        Thread.sleep(1000);
+
+        assertTrue("Segment queue should be empty", flushFinished.get());
     }
 
     private static RemoteSegmentArchiveEntry tarEntry(long i) {

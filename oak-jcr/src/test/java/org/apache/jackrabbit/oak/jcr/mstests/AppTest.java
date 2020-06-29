@@ -39,10 +39,10 @@ public class AppTest {
 
     @Before
     public void before() throws Exception {
-//        File directory = new File("target", "segment-tar-" + System.currentTimeMillis());
-//        this.store = FileStoreBuilder.fileStoreBuilder(directory).withMaxFileSize(1).build();
-//        Jcr jcr = new Jcr(new Oak(SegmentNodeStoreBuilders.builder(store).build()));
-        Jcr jcr = new Jcr(new MemoryNodeStore());
+        File directory = new File("target", "segment-tar-" + System.currentTimeMillis());
+        this.store = FileStoreBuilder.fileStoreBuilder(directory).withMaxFileSize(1).build();
+        Jcr jcr = new Jcr(new Oak(SegmentNodeStoreBuilders.builder(store).build()));
+//        Jcr jcr = new Jcr(new MemoryNodeStore());
         this.repository = jcr.createRepository();
     }
     /**

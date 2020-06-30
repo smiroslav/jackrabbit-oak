@@ -26,11 +26,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.SortedMap;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.store.remote.store.ID;
+import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.Store;
 import org.apache.jackrabbit.oak.store.remote.store.Value;
@@ -43,25 +45,48 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 
-class KVNodeState extends AbstractNodeState {
+class RemoteNodeState extends AbstractNodeState {
 
-    private final Store store;
+    private Store store;
 
     private final BlobStore blobStore;
 
-    private final ID id;
+    private ID id;
 
-    private final Node node;
+    private Node node;
+
+    private String path;
+    private MemoryStorage storage;
 
     private Map<String, Value> properties;
 
     private Map<String, ID> children;
 
-    KVNodeState(Store store, BlobStore blobStore, ID id, Node node) {
+    Map<String, PropertyState> propertiesMap;
+    MemoryStorage.Node remoteNode;
+
+    RemoteNodeState(Store store, BlobStore blobStore, ID id, Node node) {
         this.store = store;
         this.blobStore = blobStore;
         this.id = id;
         this.node = node;
+    }
+
+    RemoteNodeState(String path, MemoryStorage storage, BlobStore blobStore) {
+        this.path = path;
+        this.storage = storage;
+        this.blobStore = blobStore;
+    }
+
+    public String getNodePath() {
+        return this.path;
+    }
+
+    public MemoryStorage.Node getNode() {
+        if (remoteNode == null) {
+            remoteNode = storage.getNode(this.path);
+        }
+        return remoteNode;
     }
 
     public ID getID() {
@@ -96,22 +121,25 @@ class KVNodeState extends AbstractNodeState {
 
     @Override
     public boolean exists() {
-        return true;
+        //return true;
+        return null != getNode();
     }
 
     @Override
     public Iterable<? extends PropertyState> getProperties() {
-        return properties().entrySet().stream().map(this::newPropertyState).collect(toList());
+        //return properties().entrySet().stream().map(this::newPropertyState).collect(toList());
+        return getNode().getProperties().values();
     }
 
     @Override
     public boolean hasChildNode(String name) {
-        return children().containsKey(name);
+        //return children().containsKey(name);
+        return getNode().hasChildNode(name);
     }
 
     @Override
     public NodeState getChildNode(String name) throws IllegalArgumentException {
-        ID childId = children().get(name);
+        /*ID childId = children().get(name);
 
         if (childId == null) {
             return EmptyNodeState.MISSING_NODE;
@@ -125,17 +153,41 @@ class KVNodeState extends AbstractNodeState {
             return EmptyNodeState.MISSING_NODE;
         }
 
-        return new KVNodeState(store, blobStore, childId, child);
+        return new RemoteNodeState(store, blobStore, childId, child);
+        */
+        String childPath = getNodePath().equals("/") ? getNodePath() + name : getNodePath() + "/" + name;
+
+        return new RemoteNodeState(childPath, storage, blobStore);
     }
 
     @Override
     public Iterable<? extends ChildNodeEntry> getChildNodeEntries() {
-        return children().keySet().stream().map(this::newChildNodeEntry).collect(toList());
+        SortedMap<String, MemoryStorage.Node> subtree = storage.getNodeAndSubtree(getNodePath());
+
+        return subtree.values().stream().map(this::createChildNodeEntry).collect(toList());
+
+        //return children().keySet().stream().map(this::newChildNodeEntry).collect(toList());
+    }
+
+    private ChildNodeEntry createChildNodeEntry(MemoryStorage.Node node) {
+        return new ChildNodeEntry() {
+
+            @Override
+            public String getName() {
+                return node.getName();
+            }
+
+            @Override
+            public NodeState getNodeState() {
+                return getChildNode(node.getName());
+            }
+
+        };
     }
 
     @Override
     public NodeBuilder builder() {
-        return new KVNodeBuilder(this);
+        return new RemoteNodeBuilder(this);
     }
 
     @Override
@@ -146,8 +198,11 @@ class KVNodeState extends AbstractNodeState {
         if (o == null) {
             return false;
         }
-        if (o instanceof KVNodeState) {
-            if (id.equals(((KVNodeState) o).id)) {
+        if (o instanceof RemoteNodeState) {
+//            if (id.equals(((RemoteNodeState) o).id)) {
+//                return true;
+//            }
+            if (getNodePath().equals(((RemoteNodeState) o).getNodePath())) {
                 return true;
             }
         }
@@ -159,7 +214,8 @@ class KVNodeState extends AbstractNodeState {
 
     @Override
     public int hashCode() {
-        return id.hashCode();
+        //return id.hashCode();
+        return getNodePath().hashCode();
     }
 
     private ChildNodeEntry newChildNodeEntry(String name) {
@@ -225,7 +281,7 @@ class KVNodeState extends AbstractNodeState {
     }
 
     private Blob convertBlobID(String blobID) {
-        return new KVBlob(blobStore, blobID);
+        return new RemoteBlob(blobStore, blobID);
     }
 
     private Object convertArray(Value value) {
@@ -338,7 +394,7 @@ class KVNodeState extends AbstractNodeState {
 
     @Override
     public String toString() {
-        return String.format("KVNodeState{id=%s, node=%s}", id, node);
+        return String.format("RemoteNodeState{path=%s}", getNodePath());
     }
 
     @Override
@@ -346,8 +402,8 @@ class KVNodeState extends AbstractNodeState {
         if (base == this) {
             return true;
         }
-        if (base instanceof KVNodeState) {
-            return compareAgainstBaseState((KVNodeState) base, diff);
+        if (base instanceof RemoteNodeState) {
+            return compareAgainstBaseState((RemoteNodeState) base, diff);
         }
         if (base == EmptyNodeState.EMPTY_NODE) {
             return EmptyNodeState.compareAgainstEmptyState(this, diff);
@@ -358,22 +414,22 @@ class KVNodeState extends AbstractNodeState {
         return EmptyNodeState.compareAgainstEmptyState(this, diff);
     }
 
-    private boolean compareAgainstBaseState(KVNodeState base, NodeStateDiff diff) {
+    private boolean compareAgainstBaseState(RemoteNodeState base, NodeStateDiff diff) {
         if (base.id.equals(id)) {
             return true;
         }
-        if (!base.node.getProperties().equals(node.getProperties())) {
+        //if (!base.node.getProperties().equals(node.getProperties())) {
             if (!AbstractNodeState.comparePropertiesAgainstBaseState(this, base, diff)) {
                 return false;
             }
-        }
+        //}
         if (!base.node.getChildren().equals(node.getChildren())) {
             return compareChildrenAgainstBaseState(base, diff);
         }
         return true;
     }
 
-    private boolean compareChildrenAgainstBaseState(KVNodeState base, NodeStateDiff diff) {
+    private boolean compareChildrenAgainstBaseState(RemoteNodeState base, NodeStateDiff diff) {
         for (Entry<String, ID> entry : children().entrySet()) {
             if (base.children().containsKey(entry.getKey())) {
                 if (!base.children().get(entry.getKey()).equals(entry.getValue())) {
@@ -386,6 +442,10 @@ class KVNodeState extends AbstractNodeState {
                     return false;
                 }
             }
+        }
+
+        for (ChildNodeEntry childNode : getChildNodeEntries()) {
+
         }
         for (Entry<String, ID> entry : base.children().entrySet()) {
             if (!children().containsKey(entry.getKey())) {

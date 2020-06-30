@@ -25,20 +25,20 @@ import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularDataSupport;
 
 import org.apache.jackrabbit.oak.commons.jmx.AbstractCheckpointMBean;
-import org.apache.jackrabbit.oak.store.remote.KVCheckpoint;
-import org.apache.jackrabbit.oak.store.remote.KVNodeStore;
+import org.apache.jackrabbit.oak.store.remote.RemoteCheckpoint;
+import org.apache.jackrabbit.oak.store.remote.RemoteNodeStore;
 
 class KVCheckpointMBean extends AbstractCheckpointMBean {
 
-    private final KVNodeStore store;
+    private final RemoteNodeStore store;
 
-    KVCheckpointMBean(KVNodeStore store) {
+    KVCheckpointMBean(RemoteNodeStore store) {
         this.store = store;
     }
 
     @Override
     protected void collectCheckpoints(TabularDataSupport tab) throws OpenDataException {
-        Iterable<KVCheckpoint> checkpoints;
+        Iterable<RemoteCheckpoint> checkpoints;
 
         try {
             checkpoints = store.getCheckpoints();
@@ -46,7 +46,7 @@ class KVCheckpointMBean extends AbstractCheckpointMBean {
             throw new RuntimeException(e);
         }
 
-        for (KVCheckpoint checkpoint : checkpoints) {
+        for (RemoteCheckpoint checkpoint : checkpoints) {
             tab.put(toCompositeData(
                 checkpoint.getCheckpoint(),
                 Long.toString(checkpoint.getCreated()),
@@ -58,7 +58,7 @@ class KVCheckpointMBean extends AbstractCheckpointMBean {
 
     @Override
     public long getOldestCheckpointCreationTimestamp() {
-        Iterable<KVCheckpoint> checkpoints;
+        Iterable<RemoteCheckpoint> checkpoints;
 
         try {
             checkpoints = store.getCheckpoints();
@@ -66,9 +66,9 @@ class KVCheckpointMBean extends AbstractCheckpointMBean {
             throw new RuntimeException(e);
         }
 
-        KVCheckpoint oldest = null;
+        RemoteCheckpoint oldest = null;
 
-        for (KVCheckpoint checkpoint : checkpoints) {
+        for (RemoteCheckpoint checkpoint : checkpoints) {
             if (oldest == null || checkpoint.getCreated() < oldest.getCreated()) {
                 oldest = checkpoint;
             }

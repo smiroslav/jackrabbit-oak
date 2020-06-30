@@ -26,13 +26,13 @@ import java.util.Objects;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 
-class KVBlob implements Blob {
+class RemoteBlob implements Blob {
 
     private final BlobStore blobStore;
 
     private final String blobId;
 
-    KVBlob(BlobStore blobStore, String blobId) {
+    RemoteBlob(BlobStore blobStore, String blobId) {
         this.blobStore = blobStore;
         this.blobId = blobId;
     }
@@ -76,10 +76,10 @@ class KVBlob implements Blob {
         if (getClass() != o.getClass()) {
             return false;
         }
-        return equals((KVBlob) o);
+        return equals((RemoteBlob) o);
     }
 
-    private boolean equals(KVBlob o) {
+    private boolean equals(RemoteBlob o) {
         return Objects.equals(blobStore, o.blobStore) && Objects.equals(blobId, o.blobId);
     }
 

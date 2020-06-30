@@ -35,6 +35,7 @@ import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.store.remote.store.ID;
+import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.Store;
 import org.apache.jackrabbit.oak.store.remote.store.Value;
@@ -52,7 +53,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 
-public class KVNodeStore implements NodeStore, Observable {
+public class RemoteNodeStore implements NodeStore, Observable {
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -62,13 +63,15 @@ public class KVNodeStore implements NodeStore, Observable {
 
     private final BlobStore blobStore;
 
-    private final KVCheckpoints checkpoints;
+    private final RemoteCheckpoints checkpoints;
 
-    public KVNodeStore(Store store, BlobStore blobStore) {
+    MemoryStorage storage = MemoryStorage.getInstance();
+
+    public RemoteNodeStore(Store store, BlobStore blobStore) {
         this.store = store;
         this.blobStore = blobStore;
         this.changeDispatcher = new ChangeDispatcher(getRoot());
-        this.checkpoints = new KVCheckpoints(store, blobStore);
+        this.checkpoints = new RemoteCheckpoints(store, blobStore);
     }
 
     @Override
@@ -78,53 +81,60 @@ public class KVNodeStore implements NodeStore, Observable {
 
     @Override
     public NodeState getRoot() {
-        ID rootID;
+//        ID rootID;
+//
+//        lock.readLock().lock();
+//        try {
+//            rootID = store.getTag("root");
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        } finally {
+//            lock.readLock().unlock();
+//        }
+//
+//        if (rootID == null) {
+//            lock.writeLock().lock();
+//            try {
+//                rootID = store.getTag("root");
+//                if (rootID == null) {
+//                    rootID = store.putNode(
+//                        store.putProperties(Collections.emptyMap()),
+//                        store.putChildren(Collections.emptyMap())
+//                    );
+//                }
+//                store.putTag("root", rootID);
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            } finally {
+//                lock.writeLock().unlock();
+//            }
+//        }
 
-        lock.readLock().lock();
-        try {
-            rootID = store.getTag("root");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } finally {
-            lock.readLock().unlock();
+        MemoryStorage.Node root = storage.getNode("/");
+
+        if (root == null) {
+            root = storage.addNode("/", Collections.emptyMap());
         }
 
-        if (rootID == null) {
-            lock.writeLock().lock();
-            try {
-                rootID = store.getTag("root");
-                if (rootID == null) {
-                    rootID = store.putNode(
-                        store.putProperties(Collections.emptyMap()),
-                        store.putChildren(Collections.emptyMap())
-                    );
-                }
-                store.putTag("root", rootID);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } finally {
-                lock.writeLock().unlock();
-            }
-        }
+//        Node rootNode;
+//        try {
+//            rootNode = store.getNode(rootID);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
 
-        Node rootNode;
-        try {
-            rootNode = store.getNode(rootID);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return new KVNodeState(store, blobStore, rootID, rootNode);
+        return new RemoteNodeState("/", storage, blobStore);
     }
 
     @Override
     public NodeState merge(NodeBuilder builder, CommitHook commitHook, CommitInfo info) throws CommitFailedException {
-        if (builder instanceof KVNodeBuilder) {
-            return merge((KVNodeBuilder) builder, commitHook, info);
+        if (builder instanceof RemoteNodeBuilder) {
+            return merge((RemoteNodeBuilder) builder, commitHook, info);
         }
         throw new IllegalArgumentException("builder");
     }
 
-    private NodeState merge(KVNodeBuilder builder, CommitHook commitHook, CommitInfo commitInfo) throws CommitFailedException {
+    private NodeState merge(RemoteNodeBuilder builder, CommitHook commitHook, CommitInfo commitInfo) throws CommitFailedException {
         if (builder.isRootBuilder()) {
             try {
                 return merge(builder, builder.getBaseState(), builder.getNodeState(), commitHook, commitInfo);
@@ -135,7 +145,7 @@ public class KVNodeStore implements NodeStore, Observable {
         throw new IllegalArgumentException("builder");
     }
 
-    private NodeState merge(KVNodeBuilder builder, NodeState baseState, NodeState headState, CommitHook commitHook, CommitInfo commitInfo) throws IOException, CommitFailedException {
+    private NodeState merge(RemoteNodeBuilder builder, NodeState baseState, NodeState headState, CommitHook commitHook, CommitInfo commitInfo) throws IOException, CommitFailedException {
         ID mergedID;
 
         lock.writeLock().lock();
@@ -148,8 +158,8 @@ public class KVNodeStore implements NodeStore, Observable {
 
             ID baseID = null;
 
-            if (baseState instanceof KVNodeState) {
-                baseID = ((KVNodeState) baseState).getID();
+            if (baseState instanceof RemoteNodeState) {
+                baseID = ((RemoteNodeState) baseState).getID();
             }
 
             if (baseID == null) {
@@ -159,7 +169,7 @@ public class KVNodeStore implements NodeStore, Observable {
             if (baseID.equals(upstreamID)) {
                 mergedID = writeNode(commitHook.processCommit(baseState, headState, commitInfo));
             } else {
-                NodeBuilder upstreamBuilder = new KVNodeState(store, blobStore, upstreamID, store.getNode(upstreamID)).builder();
+                NodeBuilder upstreamBuilder = new RemoteNodeState(store, blobStore, upstreamID, store.getNode(upstreamID)).builder();
                 headState.compareAgainstBaseState(baseState, new ConflictAnnotatingRebaseDiff(upstreamBuilder));
                 mergedID = writeNode(commitHook.processCommit(upstreamBuilder.getBaseState(), upstreamBuilder.getNodeState(), commitInfo));
             }
@@ -169,7 +179,7 @@ public class KVNodeStore implements NodeStore, Observable {
             lock.writeLock().unlock();
         }
 
-        NodeState mergedState = new KVNodeState(store, blobStore, mergedID, store.getNode(mergedID));
+        NodeState mergedState = new RemoteNodeState(store, blobStore, mergedID, store.getNode(mergedID));
         changeDispatcher.contentChanged(mergedState, commitInfo);
         builder.reset(mergedState);
         return mergedState;
@@ -180,8 +190,8 @@ public class KVNodeStore implements NodeStore, Observable {
         // If the node state is already a KV node state, it's already persisted.
         // Just return its id.
 
-        if (nodeState instanceof KVNodeState) {
-            return ((KVNodeState) nodeState).getID();
+        if (nodeState instanceof RemoteNodeState) {
+            return ((RemoteNodeState) nodeState).getID();
         }
 
         // If the node state is a modified node state based on a KV node state,
@@ -193,10 +203,10 @@ public class KVNodeStore implements NodeStore, Observable {
             after = (ModifiedNodeState) nodeState;
         }
 
-        KVNodeState before = null;
+        RemoteNodeState before = null;
 
-        if (after != null && after.getBaseState() instanceof KVNodeState) {
-            before = (KVNodeState) after.getBaseState();
+        if (after != null && after.getBaseState() instanceof RemoteNodeState) {
+            before = (RemoteNodeState) after.getBaseState();
         }
 
         if (before != null) {
@@ -224,7 +234,7 @@ public class KVNodeStore implements NodeStore, Observable {
         );
     }
 
-    private ID writeModifiedNode(KVNodeState before, ModifiedNodeState after) throws IOException {
+    private ID writeModifiedNode(RemoteNodeState before, ModifiedNodeState after) throws IOException {
         class Flag {
 
             boolean value;
@@ -404,13 +414,13 @@ public class KVNodeStore implements NodeStore, Observable {
 
     @Override
     public NodeState rebase(NodeBuilder builder) {
-        if (builder instanceof KVNodeBuilder) {
-            return rebase((KVNodeBuilder) builder);
+        if (builder instanceof RemoteNodeBuilder) {
+            return rebase((RemoteNodeBuilder) builder);
         }
         throw new IllegalArgumentException("builder");
     }
 
-    private NodeState rebase(KVNodeBuilder builder) {
+    private NodeState rebase(RemoteNodeBuilder builder) {
         if (builder.isRootBuilder()) {
             try {
                 return rebase(builder, builder.getBaseState(), builder.getNodeState());
@@ -421,7 +431,7 @@ public class KVNodeStore implements NodeStore, Observable {
         throw new IllegalArgumentException("builder");
     }
 
-    private NodeState rebase(KVNodeBuilder builder, NodeState baseState, NodeState headState) throws IOException {
+    private NodeState rebase(RemoteNodeBuilder builder, NodeState baseState, NodeState headState) throws IOException {
         ID upstreamID = store.getTag("root");
 
         if (upstreamID == null) {
@@ -430,8 +440,8 @@ public class KVNodeStore implements NodeStore, Observable {
 
         ID baseID = null;
 
-        if (baseState instanceof KVNodeState) {
-            baseID = ((KVNodeState) baseState).getID();
+        if (baseState instanceof RemoteNodeState) {
+            baseID = ((RemoteNodeState) baseState).getID();
         }
 
         if (baseID == null) {
@@ -442,20 +452,20 @@ public class KVNodeStore implements NodeStore, Observable {
             return headState;
         }
 
-        builder.reset(new KVNodeState(store, blobStore, upstreamID, store.getNode(upstreamID)));
+        builder.reset(new RemoteNodeState(store, blobStore, upstreamID, store.getNode(upstreamID)));
         headState.compareAgainstBaseState(baseState, new ConflictAnnotatingRebaseDiff(builder));
         return builder.getNodeState();
     }
 
     @Override
     public NodeState reset(NodeBuilder builder) {
-        if (builder instanceof KVNodeBuilder) {
-            return reset((KVNodeBuilder) builder);
+        if (builder instanceof RemoteNodeBuilder) {
+            return reset((RemoteNodeBuilder) builder);
         }
         throw new IllegalArgumentException("builder");
     }
 
-    private NodeState reset(KVNodeBuilder builder) {
+    private NodeState reset(RemoteNodeBuilder builder) {
         if (builder.isRootBuilder()) {
             NodeState root = getRoot();
             builder.reset(root);
@@ -466,7 +476,7 @@ public class KVNodeStore implements NodeStore, Observable {
 
     @Override
     public Blob createBlob(InputStream inputStream) throws IOException {
-        return new KVBlob(blobStore, blobStore.writeBlob(inputStream));
+        return new RemoteBlob(blobStore, blobStore.writeBlob(inputStream));
     }
 
     @Override
@@ -477,7 +487,7 @@ public class KVNodeStore implements NodeStore, Observable {
             return null;
         }
 
-        return new KVBlob(blobStore, blobId);
+        return new RemoteBlob(blobStore, blobId);
     }
 
     @Override
@@ -556,7 +566,7 @@ public class KVNodeStore implements NodeStore, Observable {
         }
     }
 
-    public Iterable<KVCheckpoint> getCheckpoints() throws IOException {
+    public Iterable<RemoteCheckpoint> getCheckpoints() throws IOException {
         return checkpoints.getCheckpoints();
     }
 

@@ -22,19 +22,19 @@ package org.apache.jackrabbit.oak.store.remote;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
-class KVNodeBuilder extends MemoryNodeBuilder {
+class RemoteNodeBuilder extends MemoryNodeBuilder {
 
-    KVNodeBuilder(NodeState base) {
+    RemoteNodeBuilder(NodeState base) {
         super(base);
     }
 
-    private KVNodeBuilder(MemoryNodeBuilder parent, String name) {
+    private RemoteNodeBuilder(MemoryNodeBuilder parent, String name) {
         super(parent, name);
     }
 
     @Override
     protected MemoryNodeBuilder createChildBuilder(String name) {
-        return new KVNodeBuilder(this, name);
+        return new RemoteNodeBuilder(this, name);
     }
 
     boolean isRootBuilder() {

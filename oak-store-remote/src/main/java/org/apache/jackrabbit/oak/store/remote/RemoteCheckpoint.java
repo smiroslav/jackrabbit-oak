@@ -21,7 +21,7 @@ package org.apache.jackrabbit.oak.store.remote;
 
 import java.util.Map;
 
-public class KVCheckpoint {
+public class RemoteCheckpoint {
 
     private final String checkpoint;
 
@@ -31,7 +31,7 @@ public class KVCheckpoint {
 
     private final Map<String, String> info;
 
-    KVCheckpoint(String checkpoint, long created, long timestamp, Map<String, String> info) {
+    RemoteCheckpoint(String checkpoint, long created, long timestamp, Map<String, String> info) {
         this.checkpoint = checkpoint;
         this.created = created;
         this.timestamp = timestamp;

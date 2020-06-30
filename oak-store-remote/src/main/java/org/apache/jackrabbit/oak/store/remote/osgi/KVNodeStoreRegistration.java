@@ -25,7 +25,7 @@ import java.util.Collections;
 
 import org.apache.jackrabbit.oak.api.Descriptors;
 import org.apache.jackrabbit.oak.api.jmx.CheckpointMBean;
-import org.apache.jackrabbit.oak.store.remote.KVNodeStore;
+import org.apache.jackrabbit.oak.store.remote.RemoteNodeStore;
 import org.apache.jackrabbit.oak.store.remote.store.Store;
 import org.apache.jackrabbit.oak.osgi.OsgiWhiteboard;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
@@ -41,7 +41,7 @@ class KVNodeStoreRegistration {
     }
 
     static void registerKVNodeStore(BundleContext ctx, Store store, BlobStore blobStore) {
-        KVNodeStore nodeStore = new KVNodeStore(store, blobStore);
+        RemoteNodeStore nodeStore = new RemoteNodeStore(store, blobStore);
 
         ObserverTracker observerTracker = new ObserverTracker(nodeStore);
         observerTracker.start(ctx);

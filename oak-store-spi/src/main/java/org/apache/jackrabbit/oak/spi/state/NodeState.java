@@ -390,4 +390,11 @@ public interface NodeState {
         }
     };
 
+    default String getNodePath() {
+        return "this method should be implemented";
+    }
+
+    default void setNodePath(String nodePath) {
+
+    }
 }

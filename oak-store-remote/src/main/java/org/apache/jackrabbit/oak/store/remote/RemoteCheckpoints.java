@@ -46,7 +46,7 @@ import org.apache.jackrabbit.oak.store.remote.store.Value;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
-class KVCheckpoints {
+class RemoteCheckpoints {
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -54,7 +54,7 @@ class KVCheckpoints {
 
     private final BlobStore blobStore;
 
-    KVCheckpoints(Store store, BlobStore blobStore) {
+    RemoteCheckpoints(Store store, BlobStore blobStore) {
         this.store = store;
         this.blobStore = blobStore;
     }
@@ -370,7 +370,7 @@ class KVCheckpoints {
             throw new IllegalStateException("checkpoint root not found");
         }
 
-        return new KVNodeState(store, blobStore, rootID, root);
+        return new RemoteNodeState(store, blobStore, rootID, root);
     }
 
     boolean release(String reference) throws IOException {
@@ -403,7 +403,7 @@ class KVCheckpoints {
         return true;
     }
 
-    Iterable<KVCheckpoint> getCheckpoints() throws IOException {
+    Iterable<RemoteCheckpoint> getCheckpoints() throws IOException {
         ID id;
 
         lock.readLock().lock();
@@ -429,7 +429,7 @@ class KVCheckpoints {
             throw new IllegalStateException("checkpoints children not found");
         }
 
-        List<KVCheckpoint> valid = new ArrayList<>();
+        List<RemoteCheckpoint> valid = new ArrayList<>();
 
         for (Entry<String, ID> e : checkpointsChildren.entrySet()) {
             addCheckpoint(valid, e.getKey(), e.getValue());
@@ -438,7 +438,7 @@ class KVCheckpoints {
         return valid;
     }
 
-    private void addCheckpoint(List<KVCheckpoint> checkpoints, String handle, ID id) throws IOException {
+    private void addCheckpoint(List<RemoteCheckpoint> checkpoints, String handle, ID id) throws IOException {
         Node checkpoint = store.getNode(id);
 
         if (checkpoint == null) {
@@ -484,7 +484,7 @@ class KVCheckpoints {
             normalized.put(e.getKey(), e.getValue().asStringValue());
         }
 
-        checkpoints.add(new KVCheckpoint(handle, created, timestamp, normalized));
+        checkpoints.add(new RemoteCheckpoint(handle, created, timestamp, normalized));
     }
 
 }

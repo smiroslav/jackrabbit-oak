@@ -37,7 +37,7 @@ public class KVNodeStoreTest {
         Session session = repository.login(
                 new SimpleCredentials("admin", "admin".toCharArray()));
 
-        Node node = session.getRootNode().addNode("a").addNode("b");
+        Node node = session.getRootNode().addNode("a").addNode("b").addNode("c").addNode("d");
 
         node.setProperty("prop1", "val1");
         node.setProperty("prop2", "val2");
@@ -48,7 +48,7 @@ public class KVNodeStoreTest {
 
         session = repository.login(
                 new SimpleCredentials("admin", "admin".toCharArray()));
-        node = session.getNode("/a/b");
+        node = session.getNode("/a/b/c/d");
 
 
         assertNotNull(node);
@@ -59,15 +59,15 @@ public class KVNodeStoreTest {
 
         session.save();
 
-        session.getRootNode().addNode("c");
+        session.getRootNode().addNode("e");
 
         session.save();
 
-        session.move("/a/b", "/c/b");
+        session.move("/a/b", "/e/b");
 
         session.save();
 
-        node = session.getNode("/c/b");
+        node = session.getNode("/e/b/c/d");
 
         assertNotNull(node);
     }

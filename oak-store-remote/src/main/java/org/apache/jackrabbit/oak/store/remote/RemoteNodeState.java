@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.SortedMap;
 
 import org.apache.jackrabbit.oak.api.Blob;
@@ -49,7 +50,7 @@ class RemoteNodeState extends AbstractNodeState {
 
     private Store store;
 
-    private final BlobStore blobStore;
+    private BlobStore blobStore = null;
 
     private ID id;
 
@@ -65,6 +66,8 @@ class RemoteNodeState extends AbstractNodeState {
     Map<String, PropertyState> propertiesMap;
     MemoryStorage.Node remoteNode;
 
+    private long revision;
+
     RemoteNodeState(Store store, BlobStore blobStore, ID id, Node node) {
         this.store = store;
         this.blobStore = blobStore;
@@ -72,10 +75,11 @@ class RemoteNodeState extends AbstractNodeState {
         this.node = node;
     }
 
-    RemoteNodeState(String path, MemoryStorage storage, BlobStore blobStore) {
+    RemoteNodeState(String path, MemoryStorage storage, BlobStore blobStore, long revision) {
         this.path = path;
         this.storage = storage;
         this.blobStore = blobStore;
+        this.revision = revision;
     }
 
     public String getNodePath() {
@@ -84,7 +88,7 @@ class RemoteNodeState extends AbstractNodeState {
 
     public MemoryStorage.Node getNode() {
         if (remoteNode == null) {
-            remoteNode = storage.getNode(this.path);
+            remoteNode = storage.getNode(this.path, revision);
         }
         return remoteNode;
     }
@@ -96,7 +100,7 @@ class RemoteNodeState extends AbstractNodeState {
     Node node() {
         return node;
     }
-
+/*
     Map<String, Value> properties() {
         if (properties == null) {
             try {
@@ -118,7 +122,7 @@ class RemoteNodeState extends AbstractNodeState {
         }
         return children;
     }
-
+*/
     @Override
     public boolean exists() {
         //return true;
@@ -157,12 +161,13 @@ class RemoteNodeState extends AbstractNodeState {
         */
         String childPath = getNodePath().equals("/") ? getNodePath() + name : getNodePath() + "/" + name;
 
-        return new RemoteNodeState(childPath, storage, blobStore);
+        return new RemoteNodeState(childPath, storage, blobStore, revision);
     }
 
     @Override
     public Iterable<? extends ChildNodeEntry> getChildNodeEntries() {
-        SortedMap<String, MemoryStorage.Node> subtree = storage.getNodeAndSubtree(getNodePath());
+        SortedMap<String, MemoryStorage.Node> subtree = storage.getNodeAndSubtree(getNodePath(), revision, false);
+        subtree.remove(this.path);
 
         return subtree.values().stream().map(this::createChildNodeEntry).collect(toList());
 
@@ -199,10 +204,7 @@ class RemoteNodeState extends AbstractNodeState {
             return false;
         }
         if (o instanceof RemoteNodeState) {
-//            if (id.equals(((RemoteNodeState) o).id)) {
-//                return true;
-//            }
-            if (getNodePath().equals(((RemoteNodeState) o).getNodePath())) {
+            if (getNodePath().equals(((RemoteNodeState) o).getNodePath()) && revision == ((RemoteNodeState) o).revision) {
                 return true;
             }
         }
@@ -214,8 +216,7 @@ class RemoteNodeState extends AbstractNodeState {
 
     @Override
     public int hashCode() {
-        //return id.hashCode();
-        return getNodePath().hashCode();
+        return Objects.hash(getNodePath(), revision);
     }
 
     private ChildNodeEntry newChildNodeEntry(String name) {
@@ -415,20 +416,28 @@ class RemoteNodeState extends AbstractNodeState {
     }
 
     private boolean compareAgainstBaseState(RemoteNodeState base, NodeStateDiff diff) {
-        if (base.id.equals(id)) {
+        if (base.equals(this)) {
             return true;
         }
-        //if (!base.node.getProperties().equals(node.getProperties())) {
+
+        if (!AbstractNodeState.compareAgainstBaseState(this, base, diff)) {
+            return false;
+        }
+
+        /*
+        if (!base.node.getProperties().equals(node.getProperties())) {
             if (!AbstractNodeState.comparePropertiesAgainstBaseState(this, base, diff)) {
                 return false;
             }
-        //}
+        }
         if (!base.node.getChildren().equals(node.getChildren())) {
             return compareChildrenAgainstBaseState(base, diff);
         }
+        */
+
         return true;
     }
-
+/*
     private boolean compareChildrenAgainstBaseState(RemoteNodeState base, NodeStateDiff diff) {
         for (Entry<String, ID> entry : children().entrySet()) {
             if (base.children().containsKey(entry.getKey())) {
@@ -456,5 +465,5 @@ class RemoteNodeState extends AbstractNodeState {
         }
         return true;
     }
-
+*/
 }

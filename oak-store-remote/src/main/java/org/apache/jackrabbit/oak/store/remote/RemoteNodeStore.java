@@ -110,10 +110,10 @@ public class RemoteNodeStore implements NodeStore, Observable {
 //            }
 //        }
 
-        MemoryStorage.Node root = storage.getNode("/");
+        MemoryStorage.Node root = storage.getRootNode();
 
         if (root == null) {
-            root = storage.addNode("/", Collections.emptyMap());
+            root = storage.addNode("/", Collections.emptyMap(), 1);
         }
 
 //        Node rootNode;
@@ -123,7 +123,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
 //            throw new RuntimeException(e);
 //        }
 
-        return new RemoteNodeState("/", storage, blobStore);
+        return new RemoteNodeState("/", storage, blobStore, storage.getCurrentRevision());
     }
 
     @Override
@@ -248,7 +248,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
         Flag propertiesModified = new Flag(false);
         Flag childrenModified = new Flag(false);
 
-        Map<String, ID> children = new HashMap<>(before.children());
+        Map<String, ID> children = null;// new HashMap<>(before.children());
 
         after.compareAgainstBaseState(before, new NodeStateDiff() {
 

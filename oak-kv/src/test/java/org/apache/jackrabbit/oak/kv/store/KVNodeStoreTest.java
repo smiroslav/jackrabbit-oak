@@ -58,5 +58,17 @@ public class KVNodeStoreTest {
         node.setProperty("prop3", "val3");
 
         session.save();
+
+        session.getRootNode().addNode("c");
+
+        session.save();
+
+        session.move("/a/b", "/c/b");
+
+        session.save();
+
+        node = session.getNode("/c/b");
+
+        assertNotNull(node);
     }
 }

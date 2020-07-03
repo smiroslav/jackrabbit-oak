@@ -42,7 +42,7 @@ public class RemoteNodeStateTest {
         props.put("prop1", p1);
         props.put("prop2", p2);
 
-        storage.addNode("/a/b/c", props, 1);
+        storage.addNode("/a/b/c", props);
 
         RemoteNodeState nodeState = new RemoteNodeState("/a/b/c", storage, null, 1);
 
@@ -78,13 +78,16 @@ public class RemoteNodeStateTest {
 
     @Test
     public void testChildren() {
-        storage.addNode("/a", Collections.emptyMap(), 1);
-        storage.addNode("/a/b", Collections.emptyMap(), 2);
-        storage.addNode("/a/b/c", Collections.emptyMap(), 2);
-        storage.addNode("/a/d", Collections.emptyMap(), 3);
-
+        storage.addNode("/a", Collections.emptyMap());
+        storage.incrementRevisionNumber();
+        storage.addNode("/a/b", Collections.emptyMap());
+        storage.addNode("/a/b/c", Collections.emptyMap());
+        storage.incrementRevisionNumber();
+        storage.addNode("/a/d", Collections.emptyMap());
+        storage.incrementRevisionNumber();
         storage.deleteNode("/a/b", 4);
         storage.deleteNode("/a/b/c", 4);
+        storage.incrementRevisionNumber();
 
         RemoteNodeState ab5 = new RemoteNodeState("/a/b", storage, null, 5);
         RemoteNodeState ab2 = new RemoteNodeState("/a/b", storage, null, 2);
@@ -119,13 +122,13 @@ public class RemoteNodeStateTest {
 
     @Test
     public void testMove() {
-        storage.addNode("/a", Collections.emptyMap(), 1);
-        storage.addNode("/a/b", Collections.emptyMap(), 1);
-        storage.addNode("/a/b/c", Collections.emptyMap(), 1);
-        storage.addNode("/a/b/c/d", Collections.emptyMap(), 1);
-        storage.addNode("/a/b/c/e", Collections.emptyMap(), 1);
-        storage.addNode("/a/b/c/f", Collections.emptyMap(), 1);
-        storage.addNode("/g", Collections.emptyMap(), 1);
+        storage.addNode("/a", Collections.emptyMap());
+        storage.addNode("/a/b", Collections.emptyMap());
+        storage.addNode("/a/b/c", Collections.emptyMap());
+        storage.addNode("/a/b/c/d", Collections.emptyMap());
+        storage.addNode("/a/b/c/e", Collections.emptyMap());
+        storage.addNode("/a/b/c/f", Collections.emptyMap());
+        storage.addNode("/g", Collections.emptyMap());
 
         storage.moveChildNodes("/a/b/c", "/g/c");
 
@@ -143,21 +146,21 @@ public class RemoteNodeStateTest {
         props.put("prop2", p2);
 
         //revision 1
-        storage.addNode("/a", Collections.emptyMap(), 1);
-        storage.addNode("/a/b", props, 1);
-        storage.addNode("/a/b/c", Collections.emptyMap(), 1);
-
+        storage.addNode("/a", Collections.emptyMap());
+        storage.addNode("/a/b", props);
+        storage.addNode("/a/b/c", Collections.emptyMap());
+        storage.incrementRevisionNumber();
 
         //revision 2
-        storage.deleteNode("/a/b/c", 2);
+        storage.deleteNode("/a/b/c");
 
         props = new HashMap<>();
         PropertyState p3 = new StringPropertyState("prop3", "val3");
         p2 = new StringPropertyState("prop2", "val2");
         props.put("prop3", p3);
         props.put("prop2", p2);
-        storage.addNode("/a/b", props, 2);
-        storage.addNode("/a/d", Collections.emptyMap(), 2);
+        storage.addNode("/a/b", props);
+        storage.addNode("/a/d", Collections.emptyMap());
 
 
         List<String> propertiesAdded = new ArrayList<>();

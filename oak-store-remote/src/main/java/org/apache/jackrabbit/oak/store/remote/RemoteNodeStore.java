@@ -79,7 +79,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
         MemoryStorage.Node root = storage.getRootNode();
 
         if (root == null) {
-            root = storage.addNode("/", Collections.emptyMap(), 0);
+            root = storage.addNode("/", Collections.emptyMap());
         }
 
         return new RemoteNodeState("/", storage, blobStore, root.getRevision());
@@ -246,7 +246,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
             }
 
         });
-        storage.addNode(after.getNodePath(), after.getProperties(), storage.getCurrentRevision());
+        storage.addNode(after.getNodePath(), after.getProperties());
 
         if(before.exists() && !before.getNodePath().equals(after.getNodePath())) {
             storage.moveChildNodes(before.getNodePath(), after.getNodePath());

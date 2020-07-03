@@ -39,21 +39,21 @@ public class MemoryStorage implements Storage{
         return currentRevision.incrementAndGet();
     }
 
-    public Node addNode(String path, Map<String, PropertyState> properties, long revision) {
+    public Node addNode(String path, Map<String, PropertyState> properties) {
         String name = path.substring(path.lastIndexOf("/") + 1);
-        Node node = new Node(name, properties, revision);
+        Node node = new Node(name, properties, getCurrentRevision());
 
         addNode(path, node);
         return node;
     }
 
-    public Node addNode(String path, Iterable<? extends PropertyState> properties, long revision) {
+    public Node addNode(String path, Iterable<? extends PropertyState> properties) {
         Map<String, PropertyState> propertiesMap = new HashMap<>();
         for(PropertyState propertyState : properties) {
             propertiesMap.put(propertyState.getName(), propertyState);
         }
         String name = path.substring(path.lastIndexOf("/") + 1);
-        Node node = new Node(name, propertiesMap, revision);
+        Node node = new Node(name, propertiesMap, getCurrentRevision());
 
         addNode(path, node);
         return node;

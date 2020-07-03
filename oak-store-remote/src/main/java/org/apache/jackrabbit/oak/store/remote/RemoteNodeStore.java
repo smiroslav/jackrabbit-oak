@@ -120,41 +120,21 @@ public class RemoteNodeStore implements NodeStore, Observable {
     private NodeState merge(RemoteNodeBuilder builder, NodeState baseState, NodeState headState, CommitHook commitHook, CommitInfo commitInfo) throws IOException, CommitFailedException {
         lock.writeLock().lock();
         try {
-//            ID upstreamID = store.getTag("root");
-//
-//            if (upstreamID == null) {
-//                throw new IllegalStateException("invalid upstream state");
-//            }
-//
-//            ID baseID = null;
-//
-//            if (baseState instanceof RemoteNodeState) {
-//                baseID = ((RemoteNodeState) baseState).getID();
-//            }
-//
-//            if (baseID == null) {
-//                throw new IllegalStateException("invalid base state");
-//            }
-
-            if (baseState.getNodePath().equals("/")/*baseID.equals(upstreamID)*/) {
+            if (baseState.getNodePath().equals("/")) {
                 writeNode(commitHook.processCommit(baseState, headState, commitInfo));
             } else {
                 NodeBuilder upstreamBuilder = new RemoteNodeState(baseState.getNodePath(), storage, blobStore, storage.getCurrentRevision()).builder();
                 headState.compareAgainstBaseState(baseState, new ConflictAnnotatingRebaseDiff(upstreamBuilder));
                 writeNode(commitHook.processCommit(upstreamBuilder.getBaseState(), upstreamBuilder.getNodeState(), commitInfo));
             }
-
-            //store.putTag("root", mergedID);
         } finally {
             lock.writeLock().unlock();
         }
 
-        //NodeState mergedState = new RemoteNodeState(store, blobStore, mergedID, store.getNode(mergedID));
         NodeState mergedState = new RemoteNodeState(baseState.getNodePath(), storage, blobStore, storage.getCurrentRevision());
         changeDispatcher.contentChanged(mergedState, commitInfo);
         builder.reset(mergedState);
         storage.incrementRevisionNumber();
-        //reset(mergedState.builder());
         return mergedState;
     }
 
@@ -162,13 +142,10 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
         //if node exist return
         if (nodeState instanceof RemoteNodeState) {
-            if (((RemoteNodeState) nodeState).exists()) {
+            if (nodeState.exists()) {
                 return;
             }
         }
-
-        // If the node state is a modified node state based on a KV node state,
-        // check what changed and only persist those parts that changed.
 
         ModifiedNodeState after = null;
 
@@ -198,9 +175,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
         NodeState missing = EmptyNodeState.MISSING_NODE;
         if (after != null) {
-            //missing.setNodePath(after.getNodePath());
             writeModifiedNode(missing , after);
-            //storage.addNode(nodeState.getNodePath(), properties, storage.getCurrentRevision());
         } else {
             writeModifiedNode(missing , nodeState);
         }
@@ -219,8 +194,6 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
         Flag propertiesModified = new Flag(false);
         Flag childrenModified = new Flag(false);
-
-        Map<String, ID> children = null;// new HashMap<>(before.children());
 
         if (before.exists()) {
             after.setNodePath(before.getNodePath());
@@ -252,7 +225,6 @@ public class RemoteNodeStore implements NodeStore, Observable {
                 try {
                     child.setNodePath(getChildNodePath(after.getNodePath(), name));
                     writeNode(child);
-                    //children.put(name, writeNode(after));
                 } catch (IOException e) {
                     throw new IllegalStateException(e);
                 }
@@ -273,7 +245,6 @@ public class RemoteNodeStore implements NodeStore, Observable {
                 try {
                     child.setNodePath(getChildNodePath(after.getNodePath(), name));
                     writeNode(child);
-                    //children.put(name, writeNode(after));
                 } catch (IOException e) {
                     throw new IllegalStateException(e);
                 }
@@ -283,33 +254,11 @@ public class RemoteNodeStore implements NodeStore, Observable {
             @Override
             public boolean childNodeDeleted(String name, NodeState child) {
                 childrenModified.value = true;
-                //children.remove(name);
                 storage.deleteNode(getChildNodePath(after.getNodePath(), name));
                 return true;
             }
 
         });
-
-        /*ID propertiesId = before.node().getProperties();
-
-        if (propertiesModified.value) {
-            Map<String, Value> properties = new HashMap<>();
-
-            for (PropertyState propertyState : after.getProperties()) {
-                properties.put(propertyState.getName(), newValue(propertyState));
-            }
-
-            propertiesId = store.putProperties(properties);
-        }
-
-        ID childrenId = before.node().getChildren();
-
-        if (childrenModified.value) {
-            childrenId = store.putChildren(children);
-        }
-
-        return store.putNode(propertiesId, childrenId);*/
-
         storage.addNode(after.getNodePath(), after.getProperties(), storage.getCurrentRevision());
     }
 

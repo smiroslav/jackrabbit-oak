@@ -5,13 +5,14 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class MemoryStorage {
+public class MemoryStorage implements Storage{
     private static MemoryStorage INSTANCE;
 
     private AtomicLong currentRevision = new AtomicLong(1);
@@ -70,11 +71,19 @@ public class MemoryStorage {
     }
 
     public void deleteNode(String path, long revision) {
-        Node node = getNode(path, revision);
 
-        if (node != null) {
-            node.setRevisionDeleted(revision);
+        SortedMap<String, List<Node>> nodesTree = tree.subMap(path, path + '~');
+
+        for(List<Node> nodeRevisions : nodesTree.values()) {
+            Node lastRevision = nodeRevisions.get(nodeRevisions.size() - 1);
+            lastRevision.setRevisionDeleted(revision);
         }
+
+//        Node node = getNode(path, revision);
+//
+//        if (node != null) {
+//            node.setRevisionDeleted(revision);
+//        }
     }
 
     public void deleteNode(String path) {
@@ -128,6 +137,29 @@ public class MemoryStorage {
         }
 
         return result;
+    }
+
+    public void moveChildNodes(String fromPath, String toPath) {
+        SortedMap<String, List<Node>> nodesTree = tree.subMap(fromPath, fromPath + '~');
+
+        Map<String, List<Node>> movedNodes = new HashMap<>();
+
+        Iterator<Map.Entry<String, List<Node>>> nodesIterator = nodesTree.entrySet().iterator();
+        while(nodesIterator.hasNext()) {
+            Map.Entry<String, List<Node>> entry = nodesIterator.next();
+            String path = entry.getKey();
+            if(path.equals(fromPath)) {
+                continue;
+            }
+
+            path = path.replace(fromPath, toPath);
+            List<Node> revisions = entry.getValue();
+            revisions.get(revisions.size() - 1).setRevisionDeleted(Long.MAX_VALUE);
+            movedNodes.put(path, revisions);
+            nodesIterator.remove();
+        }
+
+        tree.putAll(movedNodes);
     }
 
     public static class Node {

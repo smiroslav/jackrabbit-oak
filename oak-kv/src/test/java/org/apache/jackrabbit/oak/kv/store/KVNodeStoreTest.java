@@ -46,6 +46,32 @@ public class KVNodeStoreTest {
     }
 
     @Test
+    public void testMove() throws RepositoryException {
+        Session session = repository.login(
+                new SimpleCredentials("admin", "admin".toCharArray()));
+
+        Node node = session.getRootNode().addNode("a").addNode("b").addNode("c").addNode("d");
+        node.setProperty("prop1", "val1");
+        node.setProperty("prop2", "val2");
+
+        session.getRootNode().addNode("e");
+        session.save();
+
+        session.move("/a/b/c", "/e/c");
+
+        session.save();
+
+        Node c = session.getNode("/e/c");
+        Node d = session.getNode("/e/c/d");
+
+        Assert.assertNotNull(c);
+        Assert.assertNotNull(d);
+
+        Assert.assertEquals("val1", d.getProperty("prop1").getString());
+        Assert.assertEquals("val2", d.getProperty("prop2").getString());
+    }
+
+    @Test
     public void testNodeStore() throws RepositoryException {
         Session session = repository.login(
                 new SimpleCredentials("admin", "admin".toCharArray()));

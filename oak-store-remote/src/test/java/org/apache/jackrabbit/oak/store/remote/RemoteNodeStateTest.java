@@ -7,6 +7,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 import org.apache.jackrabbit.oak.store.remote.RemoteNodeState;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
+import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -114,6 +115,23 @@ public class RemoteNodeStateTest {
         childNodeEntries = StreamSupport.stream(a4.getChildNodeEntries().spliterator(), false).collect(Collectors.toList());
 
         assertEquals(1, childNodeEntries.size());
+    }
+
+    @Test
+    public void testMove() {
+        storage.addNode("/a", Collections.emptyMap(), 1);
+        storage.addNode("/a/b", Collections.emptyMap(), 1);
+        storage.addNode("/a/b/c", Collections.emptyMap(), 1);
+        storage.addNode("/a/b/c/d", Collections.emptyMap(), 1);
+        storage.addNode("/a/b/c/e", Collections.emptyMap(), 1);
+        storage.addNode("/a/b/c/f", Collections.emptyMap(), 1);
+        storage.addNode("/g", Collections.emptyMap(), 1);
+
+        storage.moveChildNodes("/a/b/c", "/g/c");
+
+        TreeMap<String, MemoryStorage.Node> tree = storage.getNodeAndSubtree("/g", 1, true);
+
+        assertEquals(4, tree.size());
     }
 
     @Test

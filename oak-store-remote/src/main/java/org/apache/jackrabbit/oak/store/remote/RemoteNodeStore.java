@@ -182,7 +182,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
         Flag propertiesModified = new Flag(false);
         Flag childrenModified = new Flag(false);
 
-        if (before.exists()) {
+        if (before.exists() && after.getNodePath() == null) {
             after.setNodePath(before.getNodePath());
         }
 
@@ -247,6 +247,10 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
         });
         storage.addNode(after.getNodePath(), after.getProperties(), storage.getCurrentRevision());
+
+        if(before.exists() && !before.getNodePath().equals(after.getNodePath())) {
+            storage.moveChildNodes(before.getNodePath(), after.getNodePath());
+        }
     }
 
     private Iterable<String> writeBlobs(Iterable<Blob> it) throws IOException {

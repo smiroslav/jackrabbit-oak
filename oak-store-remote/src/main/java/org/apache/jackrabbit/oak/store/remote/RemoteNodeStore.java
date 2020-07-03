@@ -35,10 +35,7 @@ import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
-import org.apache.jackrabbit.oak.store.remote.store.ID;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
-import org.apache.jackrabbit.oak.store.remote.store.Store;
-import org.apache.jackrabbit.oak.store.remote.store.Value;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
@@ -46,7 +43,6 @@ import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.Observable;
 import org.apache.jackrabbit.oak.spi.commit.Observer;
-import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.ConflictAnnotatingRebaseDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -59,20 +55,11 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
     private final ChangeDispatcher changeDispatcher;
 
-    private Store store;
-
     private final BlobStore blobStore;
 
     private RemoteCheckpoints checkpoints;
 
     MemoryStorage storage;
-
-    public RemoteNodeStore(Store store, BlobStore blobStore) {
-        this.store = store;
-        this.blobStore = blobStore;
-        this.changeDispatcher = new ChangeDispatcher(getRoot());
-        this.checkpoints = new RemoteCheckpoints(store, blobStore);
-    }
 
     public RemoteNodeStore(MemoryStorage storage, BlobStore blobStore) {
         this.storage = storage;
@@ -296,6 +283,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
     }
 
     private NodeState rebase(RemoteNodeBuilder builder, NodeState baseState, NodeState headState) throws IOException {
+        /*
         ID upstreamID = store.getTag("root");
 
         if (upstreamID == null) {
@@ -319,6 +307,9 @@ public class RemoteNodeStore implements NodeStore, Observable {
         builder.reset(new RemoteNodeState(store, blobStore, upstreamID, store.getNode(upstreamID)));
         headState.compareAgainstBaseState(baseState, new ConflictAnnotatingRebaseDiff(builder));
         return builder.getNodeState();
+
+         */
+        return null;
     }
 
     @Override
@@ -356,6 +347,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
     @Override
     public String checkpoint(long lifetime, Map<String, String> properties) {
+        /*
         ID root;
 
         lock.readLock().lock();
@@ -372,10 +364,14 @@ public class RemoteNodeStore implements NodeStore, Observable {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+         */
+        return null;
     }
 
     @Override
     public String checkpoint(long lifetime) {
+        /*
         ID root;
 
         lock.readLock().lock();
@@ -392,6 +388,9 @@ public class RemoteNodeStore implements NodeStore, Observable {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+         */
+        return null;
     }
 
     @Override

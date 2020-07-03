@@ -19,50 +19,28 @@
 
 package org.apache.jackrabbit.oak.store.remote;
 
-import static java.util.stream.Collectors.toList;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.SortedMap;
-
-import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.api.Type;
-import org.apache.jackrabbit.oak.store.remote.store.ID;
-import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
-import org.apache.jackrabbit.oak.store.remote.store.Node;
-import org.apache.jackrabbit.oak.store.remote.store.Store;
-import org.apache.jackrabbit.oak.store.remote.store.Value;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
-import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.AbstractNodeState;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
+import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+
+import static java.util.stream.Collectors.toList;
 
 class RemoteNodeState extends AbstractNodeState {
 
-    private Store store;
-
     private BlobStore blobStore = null;
-
-    private ID id;
-
-    private Node node;
 
     private String path;
     private MemoryStorage storage;
-
-    private Map<String, Value> properties;
-
-    private Map<String, ID> children;
 
     Map<String, PropertyState> propertiesMap;
     MemoryStorage.Node remoteNode;
@@ -70,13 +48,6 @@ class RemoteNodeState extends AbstractNodeState {
     private long revision;
 
     private Map<String, MemoryStorage.Node> childNodes;
-
-    RemoteNodeState(Store store, BlobStore blobStore, ID id, Node node) {
-        this.store = store;
-        this.blobStore = blobStore;
-        this.id = id;
-        this.node = node;
-    }
 
     RemoteNodeState(String path, MemoryStorage storage, BlobStore blobStore, long revision) {
         this.path = path;
@@ -96,10 +67,6 @@ class RemoteNodeState extends AbstractNodeState {
         return remoteNode;
     }
 
-    public ID getID() {
-        return id;
-    }
-
     @Override
     public boolean exists() {
         return null != getNode();
@@ -116,8 +83,6 @@ class RemoteNodeState extends AbstractNodeState {
 
     @Override
     public boolean hasChildNode(String name) {
-        //return children().containsKey(name);
-        //return getNode().hasChildNode(name);
         return null != getChildNodesMap().get(getChildNodePath(name));
     }
 

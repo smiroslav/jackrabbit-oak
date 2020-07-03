@@ -370,7 +370,8 @@ class RemoteCheckpoints {
             throw new IllegalStateException("checkpoint root not found");
         }
 
-        return new RemoteNodeState(store, blobStore, rootID, root);
+        //return new RemoteNodeState(store, blobStore, rootID, root);
+        return new RemoteNodeState(null, null, null, 1);
     }
 
     boolean release(String reference) throws IOException {

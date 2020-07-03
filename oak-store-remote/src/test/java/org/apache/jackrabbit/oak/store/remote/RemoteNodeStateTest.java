@@ -12,6 +12,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ public class RemoteNodeStateTest {
 
     @Before
     public void setUp() {
-        storage = MemoryStorage.getInstance();
+        storage = new MemoryStorage();
     }
 
     @Test
@@ -76,10 +77,10 @@ public class RemoteNodeStateTest {
 
     @Test
     public void testChildren() {
-        storage.addNode("/a", null, 1);
-        storage.addNode("/a/b", null, 2);
-        storage.addNode("/a/b/c", null, 2);
-        storage.addNode("/a/d", null, 3);
+        storage.addNode("/a", Collections.emptyMap(), 1);
+        storage.addNode("/a/b", Collections.emptyMap(), 2);
+        storage.addNode("/a/b/c", Collections.emptyMap(), 2);
+        storage.addNode("/a/d", Collections.emptyMap(), 3);
 
         storage.deleteNode("/a/b", 4);
         storage.deleteNode("/a/b/c", 4);
@@ -102,8 +103,12 @@ public class RemoteNodeStateTest {
 
         RemoteNodeState a3 = new RemoteNodeState("/a", storage, null, 3);
         List<ChildNodeEntry> childNodeEntries = StreamSupport.stream(a3.getChildNodeEntries().spliterator(), false).collect(Collectors.toList());
-
         assertEquals(2, childNodeEntries.size());
+
+        assertNotNull(a3.getChildNode("b"));
+        assertNotNull(a3.getChildNode("d"));
+        assertTrue(a3.hasChildNode("b"));
+        assertTrue(a3.hasChildNode("d"));
 
         RemoteNodeState a4 = new RemoteNodeState("/a", storage, null, 4);
         childNodeEntries = StreamSupport.stream(a4.getChildNodeEntries().spliterator(), false).collect(Collectors.toList());
@@ -120,9 +125,9 @@ public class RemoteNodeStateTest {
         props.put("prop2", p2);
 
         //revision 1
-        storage.addNode("/a", null, 1);
+        storage.addNode("/a", Collections.emptyMap(), 1);
         storage.addNode("/a/b", props, 1);
-        storage.addNode("/a/b/c", null, 1);
+        storage.addNode("/a/b/c", Collections.emptyMap(), 1);
 
 
         //revision 2
@@ -134,7 +139,7 @@ public class RemoteNodeStateTest {
         props.put("prop3", p3);
         props.put("prop2", p2);
         storage.addNode("/a/b", props, 2);
-        storage.addNode("/a/d", null, 2);
+        storage.addNode("/a/d", Collections.emptyMap(), 2);
 
 
         List<String> propertiesAdded = new ArrayList<>();

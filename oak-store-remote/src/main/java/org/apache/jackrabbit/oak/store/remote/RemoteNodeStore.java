@@ -34,9 +34,9 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.store.remote.store.ID;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
-import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.Store;
 import org.apache.jackrabbit.oak.store.remote.store.Value;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
@@ -59,19 +59,26 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
     private final ChangeDispatcher changeDispatcher;
 
-    private final Store store;
+    private Store store;
 
     private final BlobStore blobStore;
 
-    private final RemoteCheckpoints checkpoints;
+    private RemoteCheckpoints checkpoints;
 
-    MemoryStorage storage = MemoryStorage.getInstance();
+    MemoryStorage storage;
 
     public RemoteNodeStore(Store store, BlobStore blobStore) {
         this.store = store;
         this.blobStore = blobStore;
         this.changeDispatcher = new ChangeDispatcher(getRoot());
         this.checkpoints = new RemoteCheckpoints(store, blobStore);
+    }
+
+    public RemoteNodeStore(MemoryStorage storage, BlobStore blobStore) {
+        this.storage = storage;
+        this.blobStore = blobStore;
+        this.changeDispatcher = new ChangeDispatcher(getRoot());
+        //TODO this.checkpoints = new RemoteCheckpoints(store, blobStore);
     }
 
     @Override
@@ -81,49 +88,14 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
     @Override
     public NodeState getRoot() {
-//        ID rootID;
-//
-//        lock.readLock().lock();
-//        try {
-//            rootID = store.getTag("root");
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        } finally {
-//            lock.readLock().unlock();
-//        }
-//
-//        if (rootID == null) {
-//            lock.writeLock().lock();
-//            try {
-//                rootID = store.getTag("root");
-//                if (rootID == null) {
-//                    rootID = store.putNode(
-//                        store.putProperties(Collections.emptyMap()),
-//                        store.putChildren(Collections.emptyMap())
-//                    );
-//                }
-//                store.putTag("root", rootID);
-//            } catch (IOException e) {
-//                throw new RuntimeException(e);
-//            } finally {
-//                lock.writeLock().unlock();
-//            }
-//        }
 
         MemoryStorage.Node root = storage.getRootNode();
 
         if (root == null) {
-            root = storage.addNode("/", Collections.emptyMap(), 1);
+            root = storage.addNode("/", Collections.emptyMap(), 0);
         }
 
-//        Node rootNode;
-//        try {
-//            rootNode = store.getNode(rootID);
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-
-        return new RemoteNodeState("/", storage, blobStore, storage.getCurrentRevision());
+        return new RemoteNodeState("/", storage, blobStore, root.getRevision());
     }
 
     @Override
@@ -146,52 +118,53 @@ public class RemoteNodeStore implements NodeStore, Observable {
     }
 
     private NodeState merge(RemoteNodeBuilder builder, NodeState baseState, NodeState headState, CommitHook commitHook, CommitInfo commitInfo) throws IOException, CommitFailedException {
-        ID mergedID;
-
         lock.writeLock().lock();
         try {
-            ID upstreamID = store.getTag("root");
+//            ID upstreamID = store.getTag("root");
+//
+//            if (upstreamID == null) {
+//                throw new IllegalStateException("invalid upstream state");
+//            }
+//
+//            ID baseID = null;
+//
+//            if (baseState instanceof RemoteNodeState) {
+//                baseID = ((RemoteNodeState) baseState).getID();
+//            }
+//
+//            if (baseID == null) {
+//                throw new IllegalStateException("invalid base state");
+//            }
 
-            if (upstreamID == null) {
-                throw new IllegalStateException("invalid upstream state");
-            }
-
-            ID baseID = null;
-
-            if (baseState instanceof RemoteNodeState) {
-                baseID = ((RemoteNodeState) baseState).getID();
-            }
-
-            if (baseID == null) {
-                throw new IllegalStateException("invalid base state");
-            }
-
-            if (baseID.equals(upstreamID)) {
-                mergedID = writeNode(commitHook.processCommit(baseState, headState, commitInfo));
+            if (baseState.getNodePath().equals("/")/*baseID.equals(upstreamID)*/) {
+                writeNode(commitHook.processCommit(baseState, headState, commitInfo));
             } else {
-                NodeBuilder upstreamBuilder = new RemoteNodeState(store, blobStore, upstreamID, store.getNode(upstreamID)).builder();
+                NodeBuilder upstreamBuilder = new RemoteNodeState(baseState.getNodePath(), storage, blobStore, storage.getCurrentRevision()).builder();
                 headState.compareAgainstBaseState(baseState, new ConflictAnnotatingRebaseDiff(upstreamBuilder));
-                mergedID = writeNode(commitHook.processCommit(upstreamBuilder.getBaseState(), upstreamBuilder.getNodeState(), commitInfo));
+                writeNode(commitHook.processCommit(upstreamBuilder.getBaseState(), upstreamBuilder.getNodeState(), commitInfo));
             }
 
-            store.putTag("root", mergedID);
+            //store.putTag("root", mergedID);
         } finally {
             lock.writeLock().unlock();
         }
 
-        NodeState mergedState = new RemoteNodeState(store, blobStore, mergedID, store.getNode(mergedID));
+        //NodeState mergedState = new RemoteNodeState(store, blobStore, mergedID, store.getNode(mergedID));
+        NodeState mergedState = new RemoteNodeState(baseState.getNodePath(), storage, blobStore, storage.getCurrentRevision());
         changeDispatcher.contentChanged(mergedState, commitInfo);
         builder.reset(mergedState);
+        storage.incrementRevisionNumber();
+        //reset(mergedState.builder());
         return mergedState;
     }
 
-    private ID writeNode(NodeState nodeState) throws IOException {
+    private void writeNode(NodeState nodeState) throws IOException {
 
-        // If the node state is already a KV node state, it's already persisted.
-        // Just return its id.
-
+        //if node exist return
         if (nodeState instanceof RemoteNodeState) {
-            return ((RemoteNodeState) nodeState).getID();
+            if (((RemoteNodeState) nodeState).exists()) {
+                return;
+            }
         }
 
         // If the node state is a modified node state based on a KV node state,
@@ -210,31 +183,30 @@ public class RemoteNodeStore implements NodeStore, Observable {
         }
 
         if (before != null) {
-            return writeModifiedNode(before, after);
+            writeModifiedNode(before, after);
+            return;
         }
 
-        // The node state is neither a KV node state nor a modified node state,
-        // so we have to create a new KV node out of it.
+        // The node state is neither a RemoteNodeState node state nor a modified node state,
+        // so we have to create a new RemoteNodeState node out of it.
 
-        Map<String, ID> children = new HashMap<>();
-
-        for (ChildNodeEntry entry : nodeState.getChildNodeEntries()) {
-            children.put(entry.getName(), writeNode(entry.getNodeState()));
-        }
-
-        Map<String, Value> properties = new HashMap<>();
+        Map<String, PropertyState> properties = new HashMap<>();
 
         for (PropertyState propertyState : nodeState.getProperties()) {
-            properties.put(propertyState.getName(), newValue(propertyState));
+            properties.put(propertyState.getName(), propertyState);
         }
 
-        return store.putNode(
-            store.putProperties(properties),
-            store.putChildren(children)
-        );
+        NodeState missing = EmptyNodeState.MISSING_NODE;
+        if (after != null) {
+            //missing.setNodePath(after.getNodePath());
+            writeModifiedNode(missing , after);
+            //storage.addNode(nodeState.getNodePath(), properties, storage.getCurrentRevision());
+        } else {
+            writeModifiedNode(missing , nodeState);
+        }
     }
 
-    private ID writeModifiedNode(RemoteNodeState before, ModifiedNodeState after) throws IOException {
+    private void writeModifiedNode(NodeState before, NodeState after) throws IOException {
         class Flag {
 
             boolean value;
@@ -249,6 +221,10 @@ public class RemoteNodeStore implements NodeStore, Observable {
         Flag childrenModified = new Flag(false);
 
         Map<String, ID> children = null;// new HashMap<>(before.children());
+
+        if (before.exists()) {
+            after.setNodePath(before.getNodePath());
+        }
 
         after.compareAgainstBaseState(before, new NodeStateDiff() {
 
@@ -271,10 +247,33 @@ public class RemoteNodeStore implements NodeStore, Observable {
             }
 
             @Override
-            public boolean childNodeAdded(String name, NodeState after) {
+            public boolean childNodeAdded(String name, NodeState child) {
                 childrenModified.value = true;
                 try {
-                    children.put(name, writeNode(after));
+                    child.setNodePath(getChildNodePath(after.getNodePath(), name));
+                    writeNode(child);
+                    //children.put(name, writeNode(after));
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+                return true;
+            }
+
+            private String getChildNodePath(String nodePath, String name) {
+                if (nodePath.equals("/")) {
+                    return nodePath + name;
+                } else {
+                    return nodePath + "/" + name;
+                }
+            }
+
+            @Override
+            public boolean childNodeChanged(String name, NodeState before, NodeState child) {
+                childrenModified.value = true;
+                try {
+                    child.setNodePath(getChildNodePath(after.getNodePath(), name));
+                    writeNode(child);
+                    //children.put(name, writeNode(after));
                 } catch (IOException e) {
                     throw new IllegalStateException(e);
                 }
@@ -282,26 +281,16 @@ public class RemoteNodeStore implements NodeStore, Observable {
             }
 
             @Override
-            public boolean childNodeChanged(String name, NodeState before, NodeState after) {
+            public boolean childNodeDeleted(String name, NodeState child) {
                 childrenModified.value = true;
-                try {
-                    children.put(name, writeNode(after));
-                } catch (IOException e) {
-                    throw new IllegalStateException(e);
-                }
-                return true;
-            }
-
-            @Override
-            public boolean childNodeDeleted(String name, NodeState before) {
-                childrenModified.value = true;
-                children.remove(name);
+                //children.remove(name);
+                storage.deleteNode(getChildNodePath(after.getNodePath(), name));
                 return true;
             }
 
         });
 
-        ID propertiesId = before.node().getProperties();
+        /*ID propertiesId = before.node().getProperties();
 
         if (propertiesModified.value) {
             Map<String, Value> properties = new HashMap<>();
@@ -319,83 +308,9 @@ public class RemoteNodeStore implements NodeStore, Observable {
             childrenId = store.putChildren(children);
         }
 
-        return store.putNode(propertiesId, childrenId);
-    }
+        return store.putNode(propertiesId, childrenId);*/
 
-    private Value newValue(PropertyState ps) throws IOException {
-        if (ps.getType() == Type.STRING) {
-            return Value.newStringValue(ps.getValue(Type.STRING));
-        }
-        if (ps.getType() == Type.BINARY) {
-            return Value.newBinaryValue(writeBlob(ps.getValue(Type.BINARY)));
-        }
-        if (ps.getType() == Type.LONG) {
-            return Value.newLongValue(ps.getValue(Type.LONG));
-        }
-        if (ps.getType() == Type.DOUBLE) {
-            return Value.newDoubleValue(ps.getValue(Type.DOUBLE));
-        }
-        if (ps.getType() == Type.DATE) {
-            return Value.newDateValue(ps.getValue(Type.DATE));
-        }
-        if (ps.getType() == Type.BOOLEAN) {
-            return Value.newBooleanValue(ps.getValue(Type.BOOLEAN));
-        }
-        if (ps.getType() == Type.NAME) {
-            return Value.newNameValue(ps.getValue(Type.NAME));
-        }
-        if (ps.getType() == Type.PATH) {
-            return Value.newPathValue(ps.getValue(Type.PATH));
-        }
-        if (ps.getType() == Type.REFERENCE) {
-            return Value.newReferenceValue(ps.getValue(Type.REFERENCE));
-        }
-        if (ps.getType() == Type.WEAKREFERENCE) {
-            return Value.newWeakReferenceValue(ps.getValue(Type.WEAKREFERENCE));
-        }
-        if (ps.getType() == Type.URI) {
-            return Value.newURIValue(ps.getValue(Type.URI));
-        }
-        if (ps.getType() == Type.DECIMAL) {
-            return Value.newDecimalValue(ps.getValue(Type.DECIMAL));
-        }
-        if (ps.getType() == Type.STRINGS) {
-            return Value.newStringArray(ps.getValue(Type.STRINGS));
-        }
-        if (ps.getType() == Type.BINARIES) {
-            return Value.newBinaryArray(writeBlobs(ps.getValue(Type.BINARIES)));
-        }
-        if (ps.getType() == Type.LONGS) {
-            return Value.newLongArray(ps.getValue(Type.LONGS));
-        }
-        if (ps.getType() == Type.DOUBLES) {
-            return Value.newDoubleArray(ps.getValue(Type.DOUBLES));
-        }
-        if (ps.getType() == Type.DATES) {
-            return Value.newDateArray(ps.getValue(Type.DATES));
-        }
-        if (ps.getType() == Type.BOOLEANS) {
-            return Value.newBooleanArray(ps.getValue(Type.BOOLEANS));
-        }
-        if (ps.getType() == Type.NAMES) {
-            return Value.newNameArray(ps.getValue(Type.NAMES));
-        }
-        if (ps.getType() == Type.PATHS) {
-            return Value.newPathArray(ps.getValue(Type.PATHS));
-        }
-        if (ps.getType() == Type.REFERENCES) {
-            return Value.newReferenceArray(ps.getValue(Type.REFERENCES));
-        }
-        if (ps.getType() == Type.WEAKREFERENCES) {
-            return Value.newWeakReferenceArray(ps.getValue(Type.WEAKREFERENCES));
-        }
-        if (ps.getType() == Type.URIS) {
-            return Value.newURIArray(ps.getValue(Type.URIS));
-        }
-        if (ps.getType() == Type.DECIMALS) {
-            return Value.newDecimalArray(ps.getValue(Type.DECIMALS));
-        }
-        throw new IllegalArgumentException("ps");
+        storage.addNode(after.getNodePath(), after.getProperties(), storage.getCurrentRevision());
     }
 
     private Iterable<String> writeBlobs(Iterable<Blob> it) throws IOException {

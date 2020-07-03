@@ -33,11 +33,24 @@ public class KVNodeStoreTest {
     }
 
     @Test
+    public void test() throws RepositoryException {
+        Session session = repository.login(
+                new SimpleCredentials("admin", "admin".toCharArray()));
+
+        Node node = session.getRootNode().addNode("a");//.addNode("b").addNode("c").addNode("d");
+
+        node.setProperty("prop1", "val1");
+        node.setProperty("prop2", "val2");
+
+        session.save();
+    }
+
+    @Test
     public void testNodeStore() throws RepositoryException {
         Session session = repository.login(
                 new SimpleCredentials("admin", "admin".toCharArray()));
 
-        Node node = session.getRootNode().addNode("a").addNode("b").addNode("c").addNode("d");
+        Node node = session.getRootNode().addNode("a");//.addNode("b").addNode("c").addNode("d");
 
         node.setProperty("prop1", "val1");
         node.setProperty("prop2", "val2");

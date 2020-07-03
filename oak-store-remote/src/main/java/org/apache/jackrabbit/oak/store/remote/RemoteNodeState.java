@@ -23,6 +23,7 @@ import static java.util.stream.Collectors.toList;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -67,6 +68,8 @@ class RemoteNodeState extends AbstractNodeState {
     MemoryStorage.Node remoteNode;
 
     private long revision;
+
+    private Map<String, MemoryStorage.Node> childNodes;
 
     RemoteNodeState(Store store, BlobStore blobStore, ID id, Node node) {
         this.store = store;
@@ -125,40 +128,35 @@ class RemoteNodeState extends AbstractNodeState {
 */
     @Override
     public boolean exists() {
-        //return true;
         return null != getNode();
     }
 
     @Override
     public Iterable<? extends PropertyState> getProperties() {
-        //return properties().entrySet().stream().map(this::newPropertyState).collect(toList());
-        return getNode().getProperties().values();
+        if (getNode() == null) {
+            return Collections.emptyList();
+        } else {
+            return getNode().getProperties().values();
+        }
     }
 
     @Override
     public boolean hasChildNode(String name) {
         //return children().containsKey(name);
-        return getNode().hasChildNode(name);
+        //return getNode().hasChildNode(name);
+        return null != getChildNodesMap().get(getChildNodePath(name));
+    }
+
+    private String getChildNodePath(String name) {
+        if (this.path.equals("/")) {
+            return this.path + name;
+        } else {
+            return this.path + "/" + name;
+        }
     }
 
     @Override
     public NodeState getChildNode(String name) throws IllegalArgumentException {
-        /*ID childId = children().get(name);
-
-        if (childId == null) {
-            return EmptyNodeState.MISSING_NODE;
-        }
-
-        Node child;
-
-        try {
-            child = store.getNode(childId);
-        } catch (IOException e) {
-            return EmptyNodeState.MISSING_NODE;
-        }
-
-        return new RemoteNodeState(store, blobStore, childId, child);
-        */
         String childPath = getNodePath().equals("/") ? getNodePath() + name : getNodePath() + "/" + name;
 
         return new RemoteNodeState(childPath, storage, blobStore, revision);
@@ -166,12 +164,15 @@ class RemoteNodeState extends AbstractNodeState {
 
     @Override
     public Iterable<? extends ChildNodeEntry> getChildNodeEntries() {
-        SortedMap<String, MemoryStorage.Node> subtree = storage.getNodeAndSubtree(getNodePath(), revision, false);
-        subtree.remove(this.path);
+        return getChildNodesMap().values().stream().map(this::createChildNodeEntry).collect(toList());
+    }
 
-        return subtree.values().stream().map(this::createChildNodeEntry).collect(toList());
-
-        //return children().keySet().stream().map(this::newChildNodeEntry).collect(toList());
+    private Map<String, MemoryStorage.Node> getChildNodesMap() {
+        if (this.childNodes == null) {
+            this.childNodes = storage.getNodeAndSubtree(getNodePath(), revision, false);
+            this.childNodes.remove(this.path);
+        }
+        return this.childNodes;
     }
 
     private ChildNodeEntry createChildNodeEntry(MemoryStorage.Node node) {
@@ -423,47 +424,6 @@ class RemoteNodeState extends AbstractNodeState {
         if (!AbstractNodeState.compareAgainstBaseState(this, base, diff)) {
             return false;
         }
-
-        /*
-        if (!base.node.getProperties().equals(node.getProperties())) {
-            if (!AbstractNodeState.comparePropertiesAgainstBaseState(this, base, diff)) {
-                return false;
-            }
-        }
-        if (!base.node.getChildren().equals(node.getChildren())) {
-            return compareChildrenAgainstBaseState(base, diff);
-        }
-        */
-
         return true;
     }
-/*
-    private boolean compareChildrenAgainstBaseState(RemoteNodeState base, NodeStateDiff diff) {
-        for (Entry<String, ID> entry : children().entrySet()) {
-            if (base.children().containsKey(entry.getKey())) {
-                if (!base.children().get(entry.getKey()).equals(entry.getValue())) {
-                    if (!diff.childNodeChanged(entry.getKey(), base.getChildNode(entry.getKey()), getChildNode(entry.getKey()))) {
-                        return false;
-                    }
-                }
-            } else {
-                if (!diff.childNodeAdded(entry.getKey(), getChildNode(entry.getKey()))) {
-                    return false;
-                }
-            }
-        }
-
-        for (ChildNodeEntry childNode : getChildNodeEntries()) {
-
-        }
-        for (Entry<String, ID> entry : base.children().entrySet()) {
-            if (!children().containsKey(entry.getKey())) {
-                if (!diff.childNodeDeleted(entry.getKey(), base.getChildNode(entry.getKey()))) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-*/
 }

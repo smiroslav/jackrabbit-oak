@@ -49,6 +49,19 @@ import com.google.common.base.Predicates;
  */
 public class ModifiedNodeState extends AbstractNodeState {
 
+
+    private String path;
+
+    @Override
+    public String getNodePath() {
+        return this.path;
+    }
+
+    @Override
+    public void setNodePath(String nodePath) {
+        this.path = nodePath;
+    }
+
     /**
      * Mapping from a PropertyState instance to its name.
      */

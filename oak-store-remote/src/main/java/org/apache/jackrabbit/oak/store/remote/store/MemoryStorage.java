@@ -4,6 +4,7 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -13,19 +14,19 @@ import java.util.concurrent.atomic.AtomicLong;
 public class MemoryStorage {
     private static MemoryStorage INSTANCE;
 
-    private AtomicLong currentRevision = new AtomicLong(0);
+    private AtomicLong currentRevision = new AtomicLong(1);
 
-    private MemoryStorage() {
+    public MemoryStorage() {
 
     }
 
-    public static MemoryStorage getInstance() {
-        if(INSTANCE == null) {
-            INSTANCE = new MemoryStorage();
-        }
-
-        return INSTANCE;
-    }
+//    public static MemoryStorage getInstance() {
+//        if(INSTANCE == null) {
+//            INSTANCE = new MemoryStorage();
+//        }
+//
+//        return INSTANCE;
+//    }
 
     private TreeMap<String, List<Node>> tree = new TreeMap<>();
 
@@ -33,9 +34,25 @@ public class MemoryStorage {
         return currentRevision.get();
     }
 
+    public long incrementRevisionNumber() {
+        return currentRevision.incrementAndGet();
+    }
+
     public Node addNode(String path, Map<String, PropertyState> properties, long revision) {
         String name = path.substring(path.lastIndexOf("/") + 1);
         Node node = new Node(name, properties, revision);
+
+        addNode(path, node);
+        return node;
+    }
+
+    public Node addNode(String path, Iterable<? extends PropertyState> properties, long revision) {
+        Map<String, PropertyState> propertiesMap = new HashMap<>();
+        for(PropertyState propertyState : properties) {
+            propertiesMap.put(propertyState.getName(), propertyState);
+        }
+        String name = path.substring(path.lastIndexOf("/") + 1);
+        Node node = new Node(name, propertiesMap, revision);
 
         addNode(path, node);
         return node;
@@ -58,6 +75,10 @@ public class MemoryStorage {
         if (node != null) {
             node.setRevisionDeleted(revision);
         }
+    }
+
+    public void deleteNode(String path) {
+        deleteNode(path, getCurrentRevision());
     }
 
     public Node getNode(String path, long revision) {
@@ -86,12 +107,14 @@ public class MemoryStorage {
     }
 
     public TreeMap<String, Node> getNodeAndSubtree(String path, long revision, boolean wholeSubtree) {
+
+        SortedMap<String, List<Node>> nodesTree = tree.subMap(path, path + '~');
+
         TreeMap<String, Node> result = new TreeMap<>();
 
-        SortedMap<String, List<Node>> nodesTree = tree.subMap(path, path + 1);
-
         for(String nodePath : nodesTree.keySet()){
-            if (!nodePath.matches(path + "(/[^/]+)?")) {
+            String matchPath = path.equals("/")? "" : path;
+            if (!wholeSubtree && !nodePath.equals(path) && !nodePath.matches(matchPath + "(/[^/]+)?")) {
                 continue;
             }
             List<Node> nodes = nodesTree.get(nodePath);
@@ -117,6 +140,10 @@ public class MemoryStorage {
             this.properties = properties != null ? properties : Collections.emptyMap();
             this.name = name;
             this.revision = revision;
+        }
+
+        public long getRevision() {
+            return revision;
         }
 
         public Map<String, PropertyState> getProperties() {

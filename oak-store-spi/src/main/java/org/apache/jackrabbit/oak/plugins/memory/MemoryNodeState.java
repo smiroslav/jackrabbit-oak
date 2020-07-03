@@ -40,6 +40,18 @@ class MemoryNodeState extends AbstractNodeState {
 
     private final Map<String, NodeState> nodes;
 
+    private String path;
+
+    @Override
+    public String getNodePath() {
+        return this.path;
+    }
+
+    @Override
+    public void setNodePath(String nodePath) {
+        this.path = nodePath;
+    }
+
     /**
      * Creates a new node state with the given properties and child nodes.
      * The given maps are stored as references, so their contents and

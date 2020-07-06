@@ -21,6 +21,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
 public class RemoteNodeStoreRepoTest {
 
     private static final String AGGREGATE = "test:aggregate";
@@ -136,6 +141,26 @@ public class RemoteNodeStoreRepoTest {
         Node d = node.getNode("c/d");
 
         assertNotNull(d);
+
+        Node b = d.getNode("../..");
+
+        assertEquals("b", b.getName());
+
+        Node a = d.getNode("../../..");
+
+        assertEquals("a", a.getName());
+
+        b.setProperty("bprop1", "bval1");
+
+        //check before session save
+        b = session.getNode("/a/b");
+        assertEquals("bval1", b.getProperty("bprop1").getString());
+
+        session.save();
+
+        //check after session save
+        b = session.getNode("/a/b");
+        assertEquals("bval1", b.getProperty("bprop1").getString());
     }
 
 //    @Test

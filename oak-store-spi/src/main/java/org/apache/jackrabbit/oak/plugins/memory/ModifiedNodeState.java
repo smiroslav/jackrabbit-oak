@@ -38,6 +38,7 @@ import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
+import org.apache.jackrabbit.oak.spi.state.TreeNode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -60,6 +61,11 @@ public class ModifiedNodeState extends AbstractNodeState {
     @Override
     public void setNodePath(String nodePath) {
         this.path = nodePath;
+    }
+
+    @Override
+    public TreeNode loadSubtree() {
+        return base.loadSubtree();
     }
 
     /**

@@ -12,6 +12,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+
 public class FullyLoadedTree extends AbstractMutableTree {
 
     private MutableTree mutableTree;
@@ -24,10 +27,11 @@ public class FullyLoadedTree extends AbstractMutableTree {
         this.name = tree.getName();
     }
 
-    public FullyLoadedTree( String name, TreeNode treeNode) {
+    public FullyLoadedTree( String name, TreeNode treeNode, FullyLoadedTree parent) {
         //this.mutableTree = (MutableTree) tree;
         this.subtree = treeNode;
         this.name = name;
+        this.parent = parent;
     }
 
     @Override
@@ -65,13 +69,19 @@ public class FullyLoadedTree extends AbstractMutableTree {
     public @NotNull Tree getChild(@NotNull String name) throws IllegalArgumentException {
         TreeNode childNode = subtree.getChildren().get(name);
 
-        return new FullyLoadedTree(name, childNode);
+        return new FullyLoadedTree(name, childNode, this);
     }
 
     @Override
     public @Nullable PropertyState getProperty(@NotNull String name) {
         //return super.getProperty(name);
         return this.subtree.getProperties().get(name);
+    }
+
+    @Override
+    public void setProperty(@NotNull PropertyState property) {
+        super.setProperty(property);
+        this.subtree.getProperties().put(property.getName(), property);
     }
 
     @Override

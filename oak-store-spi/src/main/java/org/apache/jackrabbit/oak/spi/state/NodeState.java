@@ -397,4 +397,9 @@ public interface NodeState {
     default void setNodePath(String nodePath) {
 
     }
+
+    default TreeNode loadSubtree() {
+        //TODO
+        return null;
+    };
 }

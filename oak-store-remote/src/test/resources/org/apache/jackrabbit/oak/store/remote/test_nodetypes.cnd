@@ -17,5 +17,7 @@
 
 <'test'='http://www.apache.org/jackrabbit/test'>
 
-[test:aggregate] > nt:folder orderable
-  + * (nt:base) = test:orderableFolder
+[test:aggregate] > nt:folder
+  - * (undefined) multiple
+  - * (undefined)
+  + * (nt:base) = test:aggregate version

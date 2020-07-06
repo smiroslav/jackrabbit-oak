@@ -1,9 +1,13 @@
 package org.apache.jackrabbit.oak.store.remote;
 
+import org.apache.jackrabbit.commons.cnd.CndImporter;
 import org.apache.jackrabbit.commons.cnd.ParseException;
 import org.apache.jackrabbit.oak.jcr.Jcr;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
 import org.junit.Assert;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -12,16 +16,23 @@ import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.SimpleCredentials;
+import javax.jcr.nodetype.NodeTypeManager;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
 
 public class RemoteNodeStoreRepoTest {
+
+    private static final String AGGREGATE = "test:aggregate";
+    private static final String UNSTRUCTURED = "nt:unstructured";
+    static final String TEST_NODETYPES = "org/apache/jackrabbit/oak/store/remote/test_nodetypes.cnd";
 
     RemoteNodeStore nodeStore;
     private Repository repository;
     MemoryStorage storage;
 
     @Before
-    public void setUp() {
+    public void setUp() throws RepositoryException, IOException, ParseException {
 
         storage = new MemoryStorage();
 
@@ -29,6 +40,13 @@ public class RemoteNodeStoreRepoTest {
 
         Jcr jcr = new Jcr(nodeStore);
         this.repository = jcr.createRepository();
+
+        Session session = repository.login(
+                new SimpleCredentials("admin", "admin".toCharArray()));
+
+        Reader cnd = new InputStreamReader(getClass().getClassLoader().getResourceAsStream(TEST_NODETYPES));
+        CndImporter.registerNodeTypes(cnd, session);
+        session.save();
     }
     @Test
     public void test() throws RepositoryException, IOException, ParseException {
@@ -101,4 +119,40 @@ public class RemoteNodeStoreRepoTest {
         Assert.assertFalse(session.nodeExists("/a/b/c/d"));
 
     }
+
+    @Test
+    public void testGetSubtree() throws RepositoryException, IOException, ParseException {
+
+        Session session = repository.login(
+                new SimpleCredentials("admin", "admin".toCharArray()));
+
+        Node node = session.getRootNode().addNode("a", UNSTRUCTURED).addNode("b", AGGREGATE).addNode("c", UNSTRUCTURED).addNode("d", UNSTRUCTURED);//.addNode("d", TYPE);
+        node.setProperty("prop1", "val1");
+        node.setProperty("prop2", "val2");
+        session.save();
+
+        node = session.getNode("/a/b");
+
+        Node d = node.getNode("c/d");
+
+        assertNotNull(d);
+    }
+
+//    @Test
+//    public void testNodeT() throws RepositoryException, IOException, ParseException {
+//        Session session = repository.login(
+//                new SimpleCredentials("admin", "admin".toCharArray()));
+//
+//        Reader cnd = new InputStreamReader(getClass().getClassLoader().getResourceAsStream(TEST_NODETYPES));
+//        CndImporter.registerNodeTypes(cnd, session);
+//        session.save();
+//
+//        Node node = session.getRootNode().addNode("e", AGGREGATE);
+//        //node.setProperty("jcr:primaryType", "test:aggregate");
+//        session.save();
+//
+//        node = session.getNode("/e");
+//
+//        assertEquals("test:aggregate", node.getProperty("jcr:primaryType").getString());
+//    }
 }

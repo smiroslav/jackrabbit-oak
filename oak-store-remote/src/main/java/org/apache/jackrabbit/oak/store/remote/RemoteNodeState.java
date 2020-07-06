@@ -26,12 +26,17 @@ import org.apache.jackrabbit.oak.spi.state.AbstractNodeState;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.apache.jackrabbit.oak.spi.state.TreeNode;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
 
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Stack;
+import java.util.TreeMap;
 
 import static java.util.stream.Collectors.toList;
 
@@ -58,6 +63,43 @@ class RemoteNodeState extends AbstractNodeState {
 
     public String getNodePath() {
         return this.path;
+    }
+
+    @Override
+    public TreeNode loadSubtree() {
+        TreeMap<String, MemoryStorage.Node> subtree = storage.getNodeAndSubtree(getNodePath(), revision, true);
+
+        Stack<TreeNode> stack = new Stack<>();
+        for (String nodePath : subtree.descendingKeySet()) {
+            MemoryStorage.Node node = subtree.get(nodePath);
+
+            Map<String, TreeNode> children = getChildrenFromStack(nodePath, stack);
+            TreeNode treeNode = new TreeNode(node.getName(), nodePath, children, node.getProperties());
+
+            stack.push(treeNode);
+        }
+        return stack.isEmpty() ? null : stack.pop();
+    }
+
+    private Map<String, TreeNode> getChildrenFromStack(String parentNodePath, Stack<TreeNode> stack) {
+        if(stack.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, TreeNode> result = new HashMap<>();
+
+        while(!stack.isEmpty()) {
+            TreeNode node = stack.peek();
+
+            if(node.getPath().startsWith(parentNodePath)) {
+                result.put(node.getName(), node);
+                stack.remove(node);
+            } else {
+                break;
+            }
+        }
+
+        return result;
     }
 
     public MemoryStorage.Node getNode() {

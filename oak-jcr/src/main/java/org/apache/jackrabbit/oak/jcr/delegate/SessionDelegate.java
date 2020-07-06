@@ -46,7 +46,10 @@ import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.api.QueryEngine;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.spi.state.TreeNode;
+import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.core.FullyLoadedTree;
 import org.apache.jackrabbit.oak.jcr.observation.EventFactory;
 import org.apache.jackrabbit.oak.jcr.session.RefreshStrategy;
 import org.apache.jackrabbit.oak.jcr.session.RefreshStrategy.Composite;
@@ -423,7 +426,20 @@ public class SessionDelegate {
     @Nullable
     public NodeDelegate getNode(String path) {
         Tree tree = root.getTree(path);
-        return tree.exists() ? new NodeDelegate(this, tree) : null;
+
+        if(!tree.exists()) {
+            return null;
+        }
+
+        String primaryType = tree.getProperty("jcr:primaryType").getValue(Type.STRING);
+
+        if (primaryType.equals("test:aggregate")) {
+            //TODO
+            FullyLoadedTree fullyLoadedTree = new FullyLoadedTree(tree);
+            return new NodeDelegateFullyLoaded(this, fullyLoadedTree);
+        } else {
+            return new NodeDelegate(this, tree);
+        }
     }
 
     /**

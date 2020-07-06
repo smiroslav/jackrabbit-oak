@@ -1,6 +1,7 @@
 package org.apache.jackrabbit.oak.store.remote;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.spi.state.TreeNode;
 import org.apache.jackrabbit.oak.plugins.memory.StringPropertyState;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -223,5 +224,47 @@ public class RemoteNodeStateTest {
         assertTrue(propertiesDeleted.contains("prop1"));
 
 
+    }
+
+    @Test
+    public void testLoadSubtree() {
+        storage.addNode("/a", Collections.emptyMap());
+        storage.addNode("/a/b", Collections.emptyMap());
+        storage.addNode("/a/b/c", Collections.emptyMap());
+        storage.addNode("/a/b/c/d", Collections.emptyMap());
+        storage.addNode("/a/b/c/e", Collections.emptyMap());
+        storage.addNode("/a/b/c/f", Collections.emptyMap());
+        storage.addNode("/a/b/g", Collections.emptyMap());
+        storage.addNode("/a/1", Collections.emptyMap());
+        storage.addNode("/a/1/2", Collections.emptyMap());
+        storage.addNode("/a/1/2/3", Collections.emptyMap());
+        storage.addNode("/a/4", Collections.emptyMap());
+        storage.addNode("/a/4/5", Collections.emptyMap());
+
+        TreeMap<String, MemoryStorage.Node> tree = storage.getNodeAndSubtree("/a", 1, true);
+
+        RemoteNodeState b1 = new RemoteNodeState("/a/b", storage, null, 4);
+
+        TreeNode subtree =  b1.loadSubtree();
+
+        assertNotNull(subtree);
+        assertEquals("b", subtree.getName());
+        assertEquals(2, subtree.getChildren().size());
+
+        TreeNode c = subtree.getChildren().get("c");
+        TreeNode g = subtree.getChildren().get("c");
+
+        assertNotNull(c);
+        assertNotNull(g);
+
+        assertEquals(3, c.getChildren().size());
+
+        TreeNode d = c.getChildren().get("d");
+        TreeNode e = c.getChildren().get("e");
+        TreeNode f = c.getChildren().get("f");
+
+        assertNotNull(d);
+        assertNotNull(e);
+        assertNotNull(f);
     }
 }

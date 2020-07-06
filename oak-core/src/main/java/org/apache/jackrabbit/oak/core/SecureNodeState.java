@@ -19,6 +19,7 @@ package org.apache.jackrabbit.oak.core;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.spi.state.TreeNode;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryChildNodeEntry;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeBuilder;
 import org.apache.jackrabbit.oak.spi.security.authorization.permission.TreePermission;
@@ -68,6 +69,11 @@ class SecureNodeState extends AbstractNodeState {
         } else {
             return null;
         }
+    }
+
+    @Override
+    public TreeNode loadSubtree() {
+        return state.loadSubtree();
     }
 
     @Override

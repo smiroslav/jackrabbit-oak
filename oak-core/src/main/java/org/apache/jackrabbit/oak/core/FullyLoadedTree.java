@@ -1,5 +1,6 @@
 package org.apache.jackrabbit.oak.core;
 
+import com.google.common.base.Predicate;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.api.Type;
@@ -17,6 +18,8 @@ import java.util.Map;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.Iterables.filter;
+import static com.google.common.collect.Iterables.size;
 
 public class FullyLoadedTree extends AbstractMutableTree {
 
@@ -113,7 +116,7 @@ public class FullyLoadedTree extends AbstractMutableTree {
 
     @Override
     public long getPropertyCount() {
-        return super.getPropertyCount();
+        return size(getProperties());
     }
 
     @Override
@@ -123,7 +126,13 @@ public class FullyLoadedTree extends AbstractMutableTree {
 
     @Override
     public @NotNull Iterable<? extends PropertyState> getProperties() {
-        return super.getProperties();
+        return filter(subtree.getProperties().values(),
+                new Predicate<PropertyState>() {
+                    @Override
+                    public boolean apply(PropertyState propertyState) {
+                        return !isHidden(propertyState.getName());
+                    }
+                });
     }
 
     @Override

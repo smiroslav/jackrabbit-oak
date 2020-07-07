@@ -3,6 +3,7 @@ package org.apache.jackrabbit.oak.spi.state;
 import org.apache.jackrabbit.oak.api.PropertyState;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class TreeNode {
@@ -18,6 +19,10 @@ public class TreeNode {
         this.name = name;
         this.children = children;
         this.path = path;
+    }
+
+    public TreeNode(String name, String path) {
+        this(name, path, new HashMap<>(), new HashMap<>());
     }
 
     public Map<String, PropertyState> getProperties() {

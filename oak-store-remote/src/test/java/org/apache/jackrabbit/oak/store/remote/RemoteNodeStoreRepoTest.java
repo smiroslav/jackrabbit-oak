@@ -173,7 +173,18 @@ public class RemoteNodeStoreRepoTest {
         b.addNode("e", UNSTRUCTURED);
 
         Node e = b.getNode("e");
+        e.setProperty("eprop1", "eval1");
 
         assertNotNull(e);
+        //jcr:primaryType should be set
+        assertNotNull(e.getProperty("jcr:primaryType"));
+        assertEquals("eval1", e.getProperty("eprop1").getString());
+
+        session.save();
+
+        e = session.getNode("/a/b/e");
+        assertNotNull(e);
+        assertNotNull(e.getProperty("jcr:primaryType"));
+        assertEquals("eval1", e.getProperty("eprop1").getString());
     }
 }

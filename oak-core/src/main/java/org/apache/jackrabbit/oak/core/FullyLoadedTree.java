@@ -2,6 +2,8 @@ package org.apache.jackrabbit.oak.core;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.plugins.tree.impl.AbstractMutableTree;
 import org.apache.jackrabbit.oak.plugins.tree.impl.AbstractTree;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -28,11 +30,12 @@ public class FullyLoadedTree extends AbstractMutableTree {
         this.name = tree.getName();
     }
 
-    public FullyLoadedTree( String name, TreeNode treeNode, FullyLoadedTree parent) {
+    FullyLoadedTree( String name, TreeNode treeNode, FullyLoadedTree parent, MutableTree mutableTree) {
         //this.mutableTree = (MutableTree) tree;
         this.subtree = treeNode;
         this.name = name;
         this.parent = parent;
+        this.mutableTree = mutableTree;
     }
 
     @Override
@@ -70,7 +73,7 @@ public class FullyLoadedTree extends AbstractMutableTree {
     public @NotNull Tree getChild(@NotNull String name) throws IllegalArgumentException {
         TreeNode childNode = subtree.getChildren().get(name);
 
-        return new FullyLoadedTree(name, childNode, this);
+        return new FullyLoadedTree(name, childNode, this, (MutableTree) mutableTree.getChild(name));
     }
 
     @Override
@@ -86,19 +89,26 @@ public class FullyLoadedTree extends AbstractMutableTree {
 
     @Override
     protected @NotNull AbstractTree createChild(@NotNull String name) throws IllegalArgumentException {
-        //throw new UnsupportedOperationException();
-        return new FullyLoadedTree(name, new TreeNode(name, subtree.getPath() + "/" + name, Collections.emptyMap(), Collections.emptyMap()), this);
+        TreeNode childTreeNode = new TreeNode(name, subtree.getPath() + "/" + name);
+        subtree.getChildren().put(name, childTreeNode);
+        return new FullyLoadedTree(name, childTreeNode, this, (MutableTree) mutableTree.getChild(name));
     }
 
     @Override
     public boolean hasProperty(@NotNull String name) {
         return subtree.getProperties().containsKey(name);
-        //return super.hasProperty(name);
     }
 
     @Override
     public boolean hasChild(@NotNull String name) {
         return subtree.getChildren().containsKey(name);
+    }
+
+
+    public <T> void setProperty(@NotNull String name, @NotNull T value, @NotNull Type<T> type)
+            throws IllegalArgumentException {
+        super.setProperty(name, value, type);
+        subtree.getProperties().put(name, PropertyStates.createProperty(name, checkNotNull(value), checkNotNull(type)));
     }
 
     @Override

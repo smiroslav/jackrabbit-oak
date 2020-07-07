@@ -6,7 +6,6 @@ import org.apache.jackrabbit.oak.plugins.memory.StringPropertyState;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
-import org.apache.jackrabbit.oak.store.remote.RemoteNodeState;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.junit.Before;
@@ -95,7 +94,7 @@ public class RemoteNodeStateTest {
         assertTrue(ab2.exists());
         assertFalse(ab5.exists());
 
-        TreeMap<String, MemoryStorage.Node> childNodes = storage.getNodeAndSubtree("/a", 3, false);
+        TreeMap<String, Node> childNodes = storage.getNodeAndSubtree("/a", 3, false);
         assertEquals(3, childNodes.size());
         assertTrue(childNodes.containsKey("/a"));
         assertTrue(childNodes.containsKey("/a/b"));
@@ -133,7 +132,7 @@ public class RemoteNodeStateTest {
 
         storage.moveChildNodes("/a/b/c", "/g/c");
 
-        TreeMap<String, MemoryStorage.Node> tree = storage.getNodeAndSubtree("/g", 1, true);
+        TreeMap<String, Node> tree = storage.getNodeAndSubtree("/g", 1, true);
 
         assertEquals(4, tree.size());
     }
@@ -241,7 +240,7 @@ public class RemoteNodeStateTest {
         storage.addNode("/a/4", Collections.emptyMap());
         storage.addNode("/a/4/5", Collections.emptyMap());
 
-        TreeMap<String, MemoryStorage.Node> tree = storage.getNodeAndSubtree("/a", 1, true);
+        TreeMap<String, Node> tree = storage.getNodeAndSubtree("/a", 1, true);
 
         RemoteNodeState b1 = new RemoteNodeState("/a/b", storage, null, 4);
 

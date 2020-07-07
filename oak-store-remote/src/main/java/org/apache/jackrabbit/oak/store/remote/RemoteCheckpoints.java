@@ -40,7 +40,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.jackrabbit.oak.store.remote.store.ID;
-import org.apache.jackrabbit.oak.store.remote.store.Node;
+import org.apache.jackrabbit.oak.store.remote.store.NodeDel;
 import org.apache.jackrabbit.oak.store.remote.store.Store;
 import org.apache.jackrabbit.oak.store.remote.store.Value;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
@@ -134,7 +134,7 @@ class RemoteCheckpoints {
         );
     }
 
-    private ID updateCheckpointsWithAdd(long now, Node node, String reference, ID checkpoint) throws IOException {
+    private ID updateCheckpointsWithAdd(long now, NodeDel node, String reference, ID checkpoint) throws IOException {
         Map<String, ID> children = new HashMap<>();
 
         Map<String, ID> previousChildren = store.getChildren(node.getChildren());
@@ -146,7 +146,7 @@ class RemoteCheckpoints {
         // Remove outdated checkpoints
 
         for (Entry<String, ID> e : previousChildren.entrySet()) {
-            Node c = store.getNode(e.getValue());
+            NodeDel c = store.getNode(e.getValue());
 
             if (c == null) {
                 continue;
@@ -176,7 +176,7 @@ class RemoteCheckpoints {
         return store.putNode(node.getProperties(), store.putChildren(children));
     }
 
-    private ID updateCheckpointsWithRemove(Node node, String reference) throws IOException {
+    private ID updateCheckpointsWithRemove(NodeDel node, String reference) throws IOException {
         Map<String, ID> prev = store.getChildren(node.getChildren());
 
         if (prev == null) {
@@ -202,7 +202,7 @@ class RemoteCheckpoints {
             return emptyMap();
         }
 
-        Node checkpoints = store.getNode(checkpointsID);
+        NodeDel checkpoints = store.getNode(checkpointsID);
 
         if (checkpoints == null) {
             throw new IllegalStateException("checkpoints node not found");
@@ -220,7 +220,7 @@ class RemoteCheckpoints {
             return emptyMap();
         }
 
-        Node checkpoint = store.getNode(checkpointID);
+        NodeDel checkpoint = store.getNode(checkpointID);
 
         if (checkpoint == null) {
             throw new IllegalStateException("checkpoint node not found");
@@ -238,7 +238,7 @@ class RemoteCheckpoints {
             throw new IllegalStateException("checkpoint properties ID not found");
         }
 
-        Node properties = store.getNode(propertiesID);
+        NodeDel properties = store.getNode(propertiesID);
 
         if (properties == null) {
             throw new IllegalStateException("checkpoint properties not found");
@@ -273,7 +273,7 @@ class RemoteCheckpoints {
             return emptySet();
         }
 
-        Node checkpoints = store.getNode(checkpointsID);
+        NodeDel checkpoints = store.getNode(checkpointsID);
 
         if (checkpoints == null) {
             throw new IllegalStateException("checkpoints node not found");
@@ -290,7 +290,7 @@ class RemoteCheckpoints {
         long now = currentTimeMillis();
 
         for (Entry<String, ID> entry : checkpointsChildren.entrySet()) {
-            Node checkpoint = store.getNode(entry.getValue());
+            NodeDel checkpoint = store.getNode(entry.getValue());
 
             if (checkpoint == null) {
                 throw new IllegalStateException("checkpoint nod not found");
@@ -328,7 +328,7 @@ class RemoteCheckpoints {
             return null;
         }
 
-        Node checkpoints = store.getNode(checkpointsID);
+        NodeDel checkpoints = store.getNode(checkpointsID);
 
         if (checkpoints == null) {
             throw new IllegalStateException("checkpoints node not found");
@@ -346,7 +346,7 @@ class RemoteCheckpoints {
             return null;
         }
 
-        Node checkpoint = store.getNode(checkpointID);
+        NodeDel checkpoint = store.getNode(checkpointID);
 
         if (checkpoint == null) {
             throw new IllegalStateException("checkpoint node not found");
@@ -364,7 +364,7 @@ class RemoteCheckpoints {
             throw new IllegalStateException("checkpoint root ID not found");
         }
 
-        Node root = store.getNode(rootID);
+        NodeDel root = store.getNode(rootID);
 
         if (root == null) {
             throw new IllegalStateException("checkpoint root not found");
@@ -383,7 +383,7 @@ class RemoteCheckpoints {
                 return true;
             }
 
-            Node checkpoints = store.getNode(id);
+            NodeDel checkpoints = store.getNode(id);
 
             if (checkpoints == null) {
                 throw new IllegalStateException("checkpoints node not found");
@@ -418,7 +418,7 @@ class RemoteCheckpoints {
             return emptyList();
         }
 
-        Node checkpoints = store.getNode(id);
+        NodeDel checkpoints = store.getNode(id);
 
         if (checkpoints == null) {
             throw new IllegalStateException("checkpoints node not found");
@@ -440,7 +440,7 @@ class RemoteCheckpoints {
     }
 
     private void addCheckpoint(List<RemoteCheckpoint> checkpoints, String handle, ID id) throws IOException {
-        Node checkpoint = store.getNode(id);
+        NodeDel checkpoint = store.getNode(id);
 
         if (checkpoint == null) {
             throw new IllegalStateException("checkpoint node not found");
@@ -467,7 +467,7 @@ class RemoteCheckpoints {
             throw new IllegalStateException("checkpoint properties ID not found");
         }
 
-        Node properties = store.getNode(propertiesID);
+        NodeDel properties = store.getNode(propertiesID);
 
         if (properties == null) {
             throw new IllegalStateException("checkpoint properties node not found");

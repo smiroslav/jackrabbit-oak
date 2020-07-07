@@ -33,7 +33,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
@@ -48,6 +47,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
+import org.apache.jackrabbit.oak.store.remote.store.Node;
 
 public class RemoteNodeStore implements NodeStore, Observable {
 
@@ -76,7 +76,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
     @Override
     public NodeState getRoot() {
 
-        MemoryStorage.Node root = storage.getRootNode();
+        Node root = storage.getRootNode();
 
         if (root == null) {
             root = storage.addNode("/", Collections.emptyMap());

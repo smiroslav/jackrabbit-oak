@@ -19,27 +19,10 @@
 
 package org.apache.jackrabbit.oak.store.remote.store;
 
-import java.io.IOException;
-import java.util.Map;
+public interface NodeDel {
 
-public interface Store {
+    ID getProperties();
 
-    ID getTag(String tag) throws IOException;
-
-    void putTag(String tag, ID id) throws IOException;
-
-    void deleteTag(String tag) throws IOException;
-
-    NodeDel getNode(ID id) throws IOException;
-
-    ID putNode(ID properties, ID children) throws IOException;
-
-    Map<String, Value> getProperties(ID id) throws IOException;
-
-    ID putProperties(Map<String, Value> properties) throws IOException;
-
-    Map<String, ID> getChildren(ID id) throws IOException;
-
-    ID putChildren(Map<String, ID> children) throws IOException;
+    ID getChildren();
 
 }

@@ -29,9 +29,9 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.TreeNode;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
+import org.apache.jackrabbit.oak.store.remote.store.Node;
 
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -48,11 +48,11 @@ class RemoteNodeState extends AbstractNodeState {
     private MemoryStorage storage;
 
     Map<String, PropertyState> propertiesMap;
-    MemoryStorage.Node remoteNode;
+    Node remoteNode;
 
     private long revision;
 
-    private Map<String, MemoryStorage.Node> childNodes;
+    private Map<String, Node> childNodes;
 
     RemoteNodeState(String path, MemoryStorage storage, BlobStore blobStore, long revision) {
         this.path = path;
@@ -67,11 +67,11 @@ class RemoteNodeState extends AbstractNodeState {
 
     @Override
     public TreeNode loadSubtree() {
-        TreeMap<String, MemoryStorage.Node> subtree = storage.getNodeAndSubtree(getNodePath(), revision, true);
+        TreeMap<String, Node> subtree = storage.getNodeAndSubtree(getNodePath(), revision, true);
 
         Stack<TreeNode> stack = new Stack<>();
         for (String nodePath : subtree.descendingKeySet()) {
-            MemoryStorage.Node node = subtree.get(nodePath);
+            Node node = subtree.get(nodePath);
 
             Map<String, TreeNode> children = getChildrenFromStack(nodePath, stack);
             TreeNode treeNode = new TreeNode(node.getName(), nodePath, children, node.getProperties());
@@ -102,7 +102,7 @@ class RemoteNodeState extends AbstractNodeState {
         return result;
     }
 
-    public MemoryStorage.Node getNode() {
+    public Node getNode() {
         if (remoteNode == null) {
             remoteNode = storage.getNode(this.path, revision);
         }
@@ -148,7 +148,7 @@ class RemoteNodeState extends AbstractNodeState {
         return getChildNodesMap().values().stream().map(this::createChildNodeEntry).collect(toList());
     }
 
-    private Map<String, MemoryStorage.Node> getChildNodesMap() {
+    private Map<String, Node> getChildNodesMap() {
         if (this.childNodes == null) {
             this.childNodes = storage.getNodeAndSubtree(getNodePath(), revision, false);
             this.childNodes.remove(this.path);
@@ -156,7 +156,7 @@ class RemoteNodeState extends AbstractNodeState {
         return this.childNodes;
     }
 
-    private ChildNodeEntry createChildNodeEntry(MemoryStorage.Node node) {
+    private ChildNodeEntry createChildNodeEntry(Node node) {
         return new ChildNodeEntry() {
 
             @Override

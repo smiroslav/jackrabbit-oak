@@ -4,6 +4,7 @@ import org.apache.jackrabbit.commons.cnd.CndImporter;
 import org.apache.jackrabbit.commons.cnd.ParseException;
 import org.apache.jackrabbit.oak.jcr.Jcr;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
+import org.junit.After;
 import org.junit.Assert;
 
 import static org.junit.Assert.assertEquals;
@@ -35,6 +36,7 @@ public class RemoteNodeStoreRepoTest {
     RemoteNodeStore nodeStore;
     private Repository repository;
     MemoryStorage storage;
+    private Session session;
 
     @Before
     public void setUp() throws RepositoryException, IOException, ParseException {
@@ -46,19 +48,24 @@ public class RemoteNodeStoreRepoTest {
         Jcr jcr = new Jcr(nodeStore);
         this.repository = jcr.createRepository();
 
-        Session session = repository.login(
+        session = repository.login(
                 new SimpleCredentials("admin", "admin".toCharArray()));
 
         Reader cnd = new InputStreamReader(getClass().getClassLoader().getResourceAsStream(TEST_NODETYPES));
         CndImporter.registerNodeTypes(cnd, session);
         session.save();
     }
+
+    @After
+    public void tearDown() {
+        if(session != null) {
+            session.logout();
+        }
+    }
     @Test
     public void test() throws RepositoryException, IOException, ParseException {
-        Session session = repository.login(
-                new SimpleCredentials("admin", "admin".toCharArray()));
 
-        Node node = session.getRootNode().addNode("a").addNode("b").addNode("c").addNode("d");//.addNode("b").addNode("c").addNode("d");
+        Node node = session.getRootNode().addNode("a").addNode("b").addNode("c").addNode("d");
 
         node.setProperty("prop1", "val1");
         node.setProperty("prop2", "val2");
@@ -79,8 +86,6 @@ public class RemoteNodeStoreRepoTest {
 
     @Test
     public void testMove() throws RepositoryException {
-        Session session = repository.login(
-                new SimpleCredentials("admin", "admin".toCharArray()));
 
         Node node = session.getRootNode().addNode("a").addNode("b").addNode("c").addNode("d");
         node.setProperty("prop1", "val1");
@@ -105,8 +110,6 @@ public class RemoteNodeStoreRepoTest {
 
     @Test
     public void testDelete() throws RepositoryException {
-        Session session = repository.login(
-                new SimpleCredentials("admin", "admin".toCharArray()));
 
         session.getRootNode().addNode("a").addNode("b").addNode("c").addNode("d");
 
@@ -128,21 +131,18 @@ public class RemoteNodeStoreRepoTest {
     @Test
     public void testGetSubtree() throws RepositoryException, IOException, ParseException {
 
-        Session session = repository.login(
-                new SimpleCredentials("admin", "admin".toCharArray()));
-
         Node node = session.getRootNode().addNode("a", UNSTRUCTURED).addNode("b", AGGREGATE).addNode("c", UNSTRUCTURED).addNode("d", UNSTRUCTURED);//.addNode("d", TYPE);
         node.setProperty("prop1", "val1");
         node.setProperty("prop2", "val2");
         session.save();
 
-        node = session.getNode("/a/b");
+        Node b = session.getNode("/a/b");
 
-        Node d = node.getNode("c/d");
+        Node d = b.getNode("c/d");
 
         assertNotNull(d);
 
-        Node b = d.getNode("../..");
+        b = d.getNode("../..");
 
         assertEquals("b", b.getName());
 
@@ -163,21 +163,17 @@ public class RemoteNodeStoreRepoTest {
         assertEquals("bval1", b.getProperty("bprop1").getString());
     }
 
-//    @Test
-//    public void testNodeT() throws RepositoryException, IOException, ParseException {
-//        Session session = repository.login(
-//                new SimpleCredentials("admin", "admin".toCharArray()));
-//
-//        Reader cnd = new InputStreamReader(getClass().getClassLoader().getResourceAsStream(TEST_NODETYPES));
-//        CndImporter.registerNodeTypes(cnd, session);
-//        session.save();
-//
-//        Node node = session.getRootNode().addNode("e", AGGREGATE);
-//        //node.setProperty("jcr:primaryType", "test:aggregate");
-//        session.save();
-//
-//        node = session.getNode("/e");
-//
-//        assertEquals("test:aggregate", node.getProperty("jcr:primaryType").getString());
-//    }
+    @Test
+    public void testGetSubtreeAddChild() throws RepositoryException, IOException, ParseException {
+        Node node = session.getRootNode().addNode("a", UNSTRUCTURED).addNode("b", AGGREGATE).addNode("c", UNSTRUCTURED).addNode("d", UNSTRUCTURED);
+        session.save();
+
+        Node b = session.getNode("/a/b");
+
+        b.addNode("e", UNSTRUCTURED);
+
+        Node e = b.getNode("e");
+
+        assertNotNull(e);
+    }
 }

@@ -10,6 +10,7 @@ import org.apache.jackrabbit.oak.spi.state.TreeNode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -56,7 +57,7 @@ public class FullyLoadedTree extends AbstractMutableTree {
 
     @Override
     public boolean exists() {
-        return true;
+        return subtree != null;
     }
 
     @Override
@@ -74,7 +75,6 @@ public class FullyLoadedTree extends AbstractMutableTree {
 
     @Override
     public @Nullable PropertyState getProperty(@NotNull String name) {
-        //return super.getProperty(name);
         return this.subtree.getProperties().get(name);
     }
 
@@ -85,8 +85,20 @@ public class FullyLoadedTree extends AbstractMutableTree {
     }
 
     @Override
+    protected @NotNull AbstractTree createChild(@NotNull String name) throws IllegalArgumentException {
+        //throw new UnsupportedOperationException();
+        return new FullyLoadedTree(name, new TreeNode(name, subtree.getPath() + "/" + name, Collections.emptyMap(), Collections.emptyMap()), this);
+    }
+
+    @Override
     public boolean hasProperty(@NotNull String name) {
-        return super.hasProperty(name);
+        return subtree.getProperties().containsKey(name);
+        //return super.hasProperty(name);
+    }
+
+    @Override
+    public boolean hasChild(@NotNull String name) {
+        return subtree.getChildren().containsKey(name);
     }
 
     @Override
@@ -105,11 +117,6 @@ public class FullyLoadedTree extends AbstractMutableTree {
     }
 
     @Override
-    public boolean hasChild(@NotNull String name) {
-        return super.hasChild(name);
-    }
-
-    @Override
     public long getChildrenCount(long max) {
         return super.getChildrenCount(max);
     }
@@ -117,11 +124,6 @@ public class FullyLoadedTree extends AbstractMutableTree {
     @Override
     public @NotNull Iterable<Tree> getChildren() {
         return super.getChildren();
-    }
-
-    @Override
-    protected @NotNull AbstractTree createChild(@NotNull String name) throws IllegalArgumentException {
-        throw new UnsupportedOperationException();
     }
 
     @Override

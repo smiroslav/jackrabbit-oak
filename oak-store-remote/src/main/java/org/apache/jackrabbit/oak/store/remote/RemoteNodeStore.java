@@ -287,32 +287,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
     }
 
     private NodeState rebase(RemoteNodeBuilder builder, NodeState baseState, NodeState headState) throws IOException {
-        /*
-        ID upstreamID = store.getTag("root");
 
-        if (upstreamID == null) {
-            return headState;
-        }
-
-        ID baseID = null;
-
-        if (baseState instanceof RemoteNodeState) {
-            baseID = ((RemoteNodeState) baseState).getID();
-        }
-
-        if (baseID == null) {
-            throw new IllegalStateException("invalid base state");
-        }
-
-        if (baseID.equals(upstreamID)) {
-            return headState;
-        }
-
-        builder.reset(new RemoteNodeState(store, blobStore, upstreamID, store.getNode(upstreamID)));
-        headState.compareAgainstBaseState(baseState, new ConflictAnnotatingRebaseDiff(builder));
-        return builder.getNodeState();
-
-         */
         return null;
     }
 
@@ -351,49 +326,13 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
     @Override
     public String checkpoint(long lifetime, Map<String, String> properties) {
-        /*
-        ID root;
 
-        lock.readLock().lock();
-        try {
-            root = store.getTag("root");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } finally {
-            lock.readLock().unlock();
-        }
-
-        try {
-            return checkpoints.checkpoint(root, lifetime, properties);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-         */
         return null;
     }
 
     @Override
     public String checkpoint(long lifetime) {
-        /*
-        ID root;
 
-        lock.readLock().lock();
-        try {
-            root = store.getTag("root");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } finally {
-            lock.readLock().unlock();
-        }
-
-        try {
-            return checkpoints.checkpoint(root, lifetime);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-         */
         return null;
     }
 

@@ -163,6 +163,60 @@ public class RemoteNodeStoreRepoTest {
         assertEquals("bval1", b.getProperty("bprop1").getString());
     }
 
+
+    /*
+            a
+            |
+            b    --> aggregate node, i.e. cq:Page of cq:PageContent
+          /   \
+        c      e
+        |      |
+        d      f
+
+     */
+    @Test
+    public void testGetSubtree2() throws RepositoryException, IOException, ParseException {
+
+        Node a = session.getRootNode().addNode("a", UNSTRUCTURED);
+        Node b = a.addNode("b", AGGREGATE);
+        Node c = b.addNode("c", UNSTRUCTURED);
+        Node d = c.addNode("d", UNSTRUCTURED);
+        Node e = b.addNode("e", UNSTRUCTURED);
+        Node f = e.addNode("f", UNSTRUCTURED);
+
+        session.save();
+
+        b = session.getNode("/a/b");
+
+        d = b.getNode("c/d");
+        assertNotNull(d);
+        assertEquals("d", d.getName());
+
+        b = d.getNode("../..");
+        assertEquals("b", b.getName());
+
+        f = d.getNode("../../e/f");
+
+        assertEquals("f", f.getName());
+
+        b.setProperty("bprop1", "bval1");
+        f.setProperty("fprop1", "fval1");
+
+        //check before session save
+        b = session.getNode("/a/b");
+        f = b.getNode("e/f");
+        assertEquals("bval1", b.getProperty("bprop1").getString());
+        assertEquals("fval1", f.getProperty("fprop1").getString());
+
+        session.save();
+
+        //check after session save
+        b = session.getNode("/a/b");
+        f = b.getNode("e/f");
+        assertEquals("bval1", b.getProperty("bprop1").getString());
+        assertEquals("fval1", f.getProperty("fprop1").getString());
+    }
+
     @Test
     public void testGetSubtreeAddChild() throws RepositoryException, IOException, ParseException {
         Node node = session.getRootNode().addNode("a", UNSTRUCTURED).addNode("b", AGGREGATE).addNode("c", UNSTRUCTURED).addNode("d", UNSTRUCTURED);

@@ -390,14 +390,17 @@ public interface NodeState {
         }
     };
 
+    //TODO - created it as default so that it does not need to be implemented in all node states; change this later
     default String getNodePath() {
         return "this method should be implemented";
     }
 
+    //TODO - created it as default so that it does not need to be implemented in all node states; change this later
     default void setNodePath(String nodePath) {
 
     }
 
+    //TODO - created it as default so that it does not need to be implemented in all node states; change this later
     default TreeNode loadSubtree() {
         //TODO
         return null;

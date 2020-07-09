@@ -179,23 +179,21 @@ public class RemoteNodeStoreRepoTest {
 
         Node a = session.getRootNode().addNode("a", UNSTRUCTURED);
         Node b = a.addNode("b", AGGREGATE);
-        Node c = b.addNode("c", UNSTRUCTURED);
-        Node d = c.addNode("d", UNSTRUCTURED);
-        Node e = b.addNode("e", UNSTRUCTURED);
-        Node f = e.addNode("f", UNSTRUCTURED);
+        b.addNode("c", UNSTRUCTURED).addNode("d", UNSTRUCTURED);
+        b.addNode("e", UNSTRUCTURED).addNode("f", UNSTRUCTURED);
 
         session.save();
 
         b = session.getNode("/a/b");
 
-        d = b.getNode("c/d");
+        Node d = b.getNode("c/d");
         assertNotNull(d);
         assertEquals("d", d.getName());
 
         b = d.getNode("../..");
         assertEquals("b", b.getName());
 
-        f = d.getNode("../../e/f");
+        Node f = d.getNode("../../e/f");
 
         assertEquals("f", f.getName());
 

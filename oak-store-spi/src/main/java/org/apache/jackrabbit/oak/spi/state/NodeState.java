@@ -390,6 +390,13 @@ public interface NodeState {
         }
     };
 
+    /*
+    TODO
+    Three methods below could be moved to the the abstract class on lover levels so that not all node state impl, have to
+    implement it.
+    Or methods can be extracted in different interface, that would be implemented only in node state implementations that are
+    path aware.
+     */
     //TODO - created it as default so that it does not need to be implemented in all node states; change this later
     default String getNodePath() {
         return "this method should be implemented";

@@ -1,5 +1,6 @@
 package org.apache.jackrabbit.oak.store.remote.store.db;
 
+import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.db.ConnectionPool;
 import org.junit.After;
 import org.junit.Before;
@@ -11,14 +12,19 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLType;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.Collections;
 import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class PostgresSqlStorageTest{
@@ -96,5 +102,48 @@ public class PostgresSqlStorageTest{
         assertTrue(resultSet.first());
         assertEquals("/a", resultSet.getString("path"));
         assertFalse(resultSet.next());
+    }
+
+    @Test
+    public void testGetNode() throws SQLException {
+        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision, revision_deleted) VALUES (?, ?, ?)";
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(insertStmtString);
+
+        //add the first node
+        preparedStatement.setString(1, "/a/b");
+        preparedStatement.setLong(2, 1);
+        preparedStatement.setNull(3, Types.BIGINT);
+
+        preparedStatement.execute();
+
+        Node node = dbStorage.getNode("/a/b", 1);
+
+        assertNotNull(node);
+
+        //add second node
+        preparedStatement.setString(1, "/a/b");
+        preparedStatement.setLong(2, 2);
+        preparedStatement.setNull(3, Types.BIGINT);
+
+        preparedStatement.execute();
+
+        node = dbStorage.getNode("/a/b", 2);
+
+        assertNotNull(node);
+        assertEquals("b", node.getName());
+        assertEquals(2, node.getRevision());
+
+        //add third revision but mark as deleted
+        preparedStatement.setString(1, "/a/b");
+        preparedStatement.setLong(2, 3);
+        preparedStatement.setLong(3, 4);
+
+        preparedStatement.execute();
+
+        node = dbStorage.getNode("/a/b", 5);
+        assertNull(node);
+
+        node = dbStorage.getNode("/a/b", 4);
+        assertNull(node);
     }
 }

@@ -10,6 +10,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
@@ -21,12 +22,17 @@ public class DbStorage implements Storage {
 
     private final String tableName;
     private final String insertStmtString;
+    private final String getNodeStmtString;
     private final AtomicLong currentRevision;
 
     public DbStorage(ConnectionPool connectionPool, String tableName) {
         this.connectionPool = connectionPool;
         this.tableName = tableName;
         insertStmtString = "INSERT INTO "+tableName+" (path, revision, properties) VALUES (?, ?, ?)";
+        getNodeStmtString = " SELECT path, revision, revision_deleted, properties FROM "+tableName+" " +
+                            //" WHERE path = ? AND (revision_deleted IS NULL OR revision_deleted > ?) " +
+                            " WHERE path = ? AND (revision <= ?) " +
+                            " ORDER BY revision DESC";
         try {
             currentRevision  = new AtomicLong(getCurrentRevisionFromTable());
         } catch (SQLException e) {
@@ -86,7 +92,34 @@ public class DbStorage implements Storage {
 
     @Override
     public Node getNode(String path, long revision) {
-        return null;
+        try {
+            Connection connection = connectionPool.getConnection();
+            PreparedStatement preparedStatement = connection.prepareStatement(getNodeStmtString, ResultSet.TYPE_SCROLL_INSENSITIVE,
+                    ResultSet.CONCUR_READ_ONLY);
+            preparedStatement.setString(1, path);
+            preparedStatement.setLong(2, revision);
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            if (resultSet.first()) {
+                String nodePath = resultSet.getString(1);
+                Long nodeRevision = resultSet.getLong(2);
+                Long nodeRevisionDeleted = resultSet.getLong(3);
+                if (nodeRevision <= revision && (nodeRevisionDeleted == null || nodeRevisionDeleted == 0)) {
+                    Map<String, PropertyState> propertyStates = deserializeProperties(resultSet.getString(4));
+                    return new Node(nodePath.substring(nodePath.lastIndexOf('/') + 1), propertyStates, nodeRevision);
+                }
+            }
+
+            return null;
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
+    private Map<String, PropertyState> deserializeProperties(String properties) {
+        //TODO
+        return Collections.emptyMap();
     }
 
     @Override

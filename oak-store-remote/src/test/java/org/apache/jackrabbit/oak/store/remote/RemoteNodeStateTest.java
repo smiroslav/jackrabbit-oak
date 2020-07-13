@@ -36,11 +36,11 @@ public class RemoteNodeStateTest {
 
     @Test
     public void testExist() {
-        Map<String, PropertyState> props = new HashMap<>();
+        List<PropertyState> props = new ArrayList<>();
         PropertyState p1 = new StringPropertyState("prop1", "val1");
         PropertyState p2 = new StringPropertyState("prop2", "val2");
-        props.put("prop1", p1);
-        props.put("prop2", p2);
+        props.add(p1);
+        props.add(p2);
 
         storage.addNode("/a/b/c", props);
 
@@ -78,12 +78,12 @@ public class RemoteNodeStateTest {
 
     @Test
     public void testChildren() {
-        storage.addNode("/a", Collections.emptyMap());
+        storage.addNode("/a", Collections.emptyList());
         storage.incrementRevisionNumber();
-        storage.addNode("/a/b", Collections.emptyMap());
-        storage.addNode("/a/b/c", Collections.emptyMap());
+        storage.addNode("/a/b", Collections.emptyList());
+        storage.addNode("/a/b/c", Collections.emptyList());
         storage.incrementRevisionNumber();
-        storage.addNode("/a/d", Collections.emptyMap());
+        storage.addNode("/a/d", Collections.emptyList());
         storage.incrementRevisionNumber();
         storage.deleteNode("/a/b", 4);
         storage.deleteNode("/a/b/c", 4);
@@ -122,13 +122,13 @@ public class RemoteNodeStateTest {
 
     @Test
     public void testMove() {
-        storage.addNode("/a", Collections.emptyMap());
-        storage.addNode("/a/b", Collections.emptyMap());
-        storage.addNode("/a/b/c", Collections.emptyMap());
-        storage.addNode("/a/b/c/d", Collections.emptyMap());
-        storage.addNode("/a/b/c/e", Collections.emptyMap());
-        storage.addNode("/a/b/c/f", Collections.emptyMap());
-        storage.addNode("/g", Collections.emptyMap());
+        storage.addNode("/a", Collections.emptyList());
+        storage.addNode("/a/b", Collections.emptyList());
+        storage.addNode("/a/b/c", Collections.emptyList());
+        storage.addNode("/a/b/c/d", Collections.emptyList());
+        storage.addNode("/a/b/c/e", Collections.emptyList());
+        storage.addNode("/a/b/c/f", Collections.emptyList());
+        storage.addNode("/g", Collections.emptyList());
 
         storage.moveChildNodes("/a/b/c", "/g/c");
 
@@ -139,28 +139,28 @@ public class RemoteNodeStateTest {
 
     @Test
     public void testCompareAgainstBaseState(){
-        Map<String, PropertyState> props = new HashMap<>();
+        List<PropertyState> props = new ArrayList<>();
         PropertyState p1 = new StringPropertyState("prop1", "val1");
         PropertyState p2 = new StringPropertyState("prop2", "val2");
-        props.put("prop1", p1);
-        props.put("prop2", p2);
+        props.add(p1);
+        props.add(p2);
 
         //revision 1
-        storage.addNode("/a", Collections.emptyMap());
+        storage.addNode("/a", Collections.emptyList());
         storage.addNode("/a/b", props);
-        storage.addNode("/a/b/c", Collections.emptyMap());
+        storage.addNode("/a/b/c", Collections.emptyList());
         storage.incrementRevisionNumber();
 
         //revision 2
         storage.deleteNode("/a/b/c");
 
-        props = new HashMap<>();
+        props = new ArrayList<>();
         PropertyState p3 = new StringPropertyState("prop3", "val3");
         p2 = new StringPropertyState("prop2", "val2");
-        props.put("prop3", p3);
-        props.put("prop2", p2);
+        props.add(p3);
+        props.add(p2);
         storage.addNode("/a/b", props);
-        storage.addNode("/a/d", Collections.emptyMap());
+        storage.addNode("/a/d", Collections.emptyList());
 
 
         List<String> propertiesAdded = new ArrayList<>();
@@ -227,18 +227,18 @@ public class RemoteNodeStateTest {
 
     @Test
     public void testLoadSubtree() {
-        storage.addNode("/a", Collections.emptyMap());
-        storage.addNode("/a/b", Collections.emptyMap());
-        storage.addNode("/a/b/c", Collections.emptyMap());
-        storage.addNode("/a/b/c/d", Collections.emptyMap());
-        storage.addNode("/a/b/c/e", Collections.emptyMap());
-        storage.addNode("/a/b/c/f", Collections.emptyMap());
-        storage.addNode("/a/b/g", Collections.emptyMap());
-        storage.addNode("/a/1", Collections.emptyMap());
-        storage.addNode("/a/1/2", Collections.emptyMap());
-        storage.addNode("/a/1/2/3", Collections.emptyMap());
-        storage.addNode("/a/4", Collections.emptyMap());
-        storage.addNode("/a/4/5", Collections.emptyMap());
+        storage.addNode("/a", Collections.emptyList());
+        storage.addNode("/a/b", Collections.emptyList());
+        storage.addNode("/a/b/c", Collections.emptyList());
+        storage.addNode("/a/b/c/d", Collections.emptyList());
+        storage.addNode("/a/b/c/e", Collections.emptyList());
+        storage.addNode("/a/b/c/f", Collections.emptyList());
+        storage.addNode("/a/b/g", Collections.emptyList());
+        storage.addNode("/a/1", Collections.emptyList());
+        storage.addNode("/a/1/2", Collections.emptyList());
+        storage.addNode("/a/1/2/3", Collections.emptyList());
+        storage.addNode("/a/4", Collections.emptyList());
+        storage.addNode("/a/4/5", Collections.emptyList());
 
         TreeMap<String, Node> tree = storage.getNodeAndSubtree("/a", 1, true);
 

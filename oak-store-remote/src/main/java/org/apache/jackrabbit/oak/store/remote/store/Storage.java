@@ -7,11 +7,11 @@ import java.util.TreeMap;
 
 public interface Storage {
 
-    Node addNode(String path, Map<String, PropertyState> properties);
+    //void addNode(String path, Map<String, PropertyState> properties);
 
-    Node addNode(String path, Iterable<? extends PropertyState> properties);
+    void addNode(String path, Iterable<? extends PropertyState> properties);
 
-    Node addNode(String path, Node node);
+    void addNode(String path, Node node);
 
     void deleteNode(String path, long revision);
 

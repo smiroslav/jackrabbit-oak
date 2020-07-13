@@ -79,8 +79,10 @@ public class RemoteNodeStore implements NodeStore, Observable {
         Node root = storage.getRootNode();
 
         if (root == null) {
-            root = storage.addNode("/", Collections.emptyMap());
+            storage.addNode("/", Collections.emptyList());
         }
+
+        root = storage.getRootNode();
 
         return new RemoteNodeState("/", storage, blobStore, root.getRevision());
     }

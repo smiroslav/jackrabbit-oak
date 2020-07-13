@@ -45,6 +45,12 @@ public class AppTest {
 //        Jcr jcr = new Jcr(new MemoryNodeStore());
         this.repository = jcr.createRepository();
     }
+//
+//    @Test
+//    public void test() {
+//        store.close();
+//    }
+
     /**
      * Rigorous Test :-)
      */

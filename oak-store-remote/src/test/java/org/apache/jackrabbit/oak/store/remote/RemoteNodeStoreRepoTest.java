@@ -3,6 +3,7 @@ package org.apache.jackrabbit.oak.store.remote;
 import org.apache.jackrabbit.commons.cnd.CndImporter;
 import org.apache.jackrabbit.commons.cnd.ParseException;
 import org.apache.jackrabbit.oak.jcr.Jcr;
+import org.apache.jackrabbit.oak.spi.blob.FileBlobStore;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
 import org.junit.After;
 import org.junit.Assert;
@@ -10,15 +11,23 @@ import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import javax.jcr.Binary;
 import javax.jcr.Node;
 import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.SimpleCredentials;
+import javax.jcr.Value;
+import javax.jcr.ValueFactory;
 import javax.jcr.nodetype.NodeTypeManager;
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 
@@ -38,12 +47,17 @@ public class RemoteNodeStoreRepoTest {
     MemoryStorage storage;
     private Session session;
 
+    @Rule
+    public TemporaryFolder blobStoreDir = new TemporaryFolder(new File("target"));
+
     @Before
     public void setUp() throws RepositoryException, IOException, ParseException {
 
         storage = new MemoryStorage();
 
-        nodeStore = new RemoteNodeStore(storage, null);
+        FileBlobStore fileBlobStore = new FileBlobStore(blobStoreDir.getRoot().getAbsolutePath());
+
+        nodeStore = new RemoteNodeStore(storage, fileBlobStore);
 
         Jcr jcr = new Jcr(nodeStore);
         this.repository = jcr.createRepository();
@@ -238,5 +252,23 @@ public class RemoteNodeStoreRepoTest {
         assertNotNull(e);
         assertNotNull(e.getProperty("jcr:primaryType"));
         assertEquals("eval1", e.getProperty("eprop1").getString());
+    }
+
+    @Test
+    public void testBlobStore() throws RepositoryException {
+
+        Node a = session.getRootNode().addNode("a", UNSTRUCTURED);
+
+        ValueFactory factory = session.getValueFactory();
+        InputStream is = new ByteArrayInputStream("binary value to become".getBytes());
+
+        Binary binary = factory.createBinary(is);
+        Value value = factory.createValue(binary);
+        a.setProperty("jcr:data", value);
+
+        session.save();
+
+        assertEquals(binary, a.getProperty("jcr:data").getBinary());
+
     }
 }

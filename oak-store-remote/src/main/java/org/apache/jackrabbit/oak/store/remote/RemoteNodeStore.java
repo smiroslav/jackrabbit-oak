@@ -253,20 +253,6 @@ public class RemoteNodeStore implements NodeStore, Observable {
         }
     }
 
-    private Iterable<String> writeBlobs(Iterable<Blob> it) throws IOException {
-        List<String> result = new ArrayList<>();
-
-        for (Blob blob : it) {
-            result.add(writeBlob(blob));
-        }
-
-        return result;
-    }
-
-    private String writeBlob(Blob blob) throws IOException {
-        return blobStore.writeBlob(blob.getNewStream());
-    }
-
     @Override
     public NodeState rebase(NodeBuilder builder) {
         if (builder instanceof RemoteNodeBuilder) {

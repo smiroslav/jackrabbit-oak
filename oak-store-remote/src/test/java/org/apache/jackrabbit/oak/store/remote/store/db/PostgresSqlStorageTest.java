@@ -160,4 +160,40 @@ public class PostgresSqlStorageTest{
         node = dbStorage.getNode("/a/b", 4);
         assertNull(node);
     }
+
+    @Test
+    public void testDeleteNode() throws SQLException {
+        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision) VALUES (?, ?)";
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(insertStmtString);
+
+        //add the first node
+        preparedStatement.setString(1, "/a/b");
+        preparedStatement.setLong(2, 1);
+        preparedStatement.execute();
+
+        //add second revision
+        preparedStatement.setString(1, "/a/b");
+        preparedStatement.setLong(2, 2);
+        preparedStatement.execute();
+
+        dbStorage.deleteNode("/a/b", 3);
+
+        Statement statement = dbConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+                ResultSet.CONCUR_READ_ONLY);
+        ResultSet resultSet = statement.executeQuery("SELECT * FROM "+TABLE+" ORDER BY revision DESC");
+
+        assertTrue(resultSet.first());
+
+        assertEquals("/a/b", resultSet.getString("path"));
+        assertEquals(2, resultSet.getLong("revision"));
+        assertEquals(3, resultSet.getLong("revision_deleted"));
+
+        assertTrue(resultSet.next());
+
+        assertEquals("/a/b", resultSet.getString("path"));
+        assertEquals(1, resultSet.getLong("revision"));
+        assertEquals(0, resultSet.getLong("revision_deleted"));
+
+        assertFalse(resultSet.next());
+    }
 }

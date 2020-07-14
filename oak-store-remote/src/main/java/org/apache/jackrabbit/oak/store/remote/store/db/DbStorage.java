@@ -23,6 +23,7 @@ public class DbStorage implements Storage {
     private final String tableName;
     private final String insertStmtString;
     private final String getNodeStmtString;
+    private final String setDeletedRevisionStmtString;
     private final AtomicLong currentRevision;
 
     public DbStorage(ConnectionPool connectionPool, String tableName) {
@@ -33,6 +34,8 @@ public class DbStorage implements Storage {
                             //" WHERE path = ? AND (revision_deleted IS NULL OR revision_deleted > ?) " +
                             " WHERE path = ? AND (revision <= ?) " +
                             " ORDER BY revision DESC";
+        setDeletedRevisionStmtString = " UPDATE "+tableName+" SET revision_deleted = ? " +
+                                       " WHERE path = ? AND revision = ?";
         try {
             currentRevision  = new AtomicLong(getCurrentRevisionFromTable());
         } catch (SQLException e) {
@@ -82,12 +85,35 @@ public class DbStorage implements Storage {
 
     @Override
     public void deleteNode(String path, long revision) {
+        try {
+            Connection connection = connectionPool.getConnection();
+            PreparedStatement preparedStatement = connection.prepareStatement(getNodeStmtString, ResultSet.TYPE_SCROLL_INSENSITIVE,
+                    ResultSet.CONCUR_READ_ONLY);
+            preparedStatement.setString(1, path);
+            preparedStatement.setLong(2, revision);
 
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            if (resultSet.first()) {
+                String nodePath = resultSet.getString(1);
+                Long nodeRevision = resultSet.getLong(2);
+
+                PreparedStatement updateStatement = connection.prepareStatement(setDeletedRevisionStmtString);
+                updateStatement.setLong(1, revision);
+                updateStatement.setString(2, nodePath);
+                updateStatement.setLong(3, nodeRevision);
+
+                updateStatement.execute();
+            }
+
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
     }
 
     @Override
     public void deleteNode(String path) {
-
+        deleteNode(path, getCurrentRevision());
     }
 
     @Override

@@ -135,13 +135,14 @@ public class PostgresSqlStorageTest{
 
     @Test
     public void testGetNode() throws SQLException {
-        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision, revision_deleted) VALUES (?, ?, ?)";
+        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision, revision_deleted, parent_path) VALUES (?, ?, ?, ?)";
         PreparedStatement preparedStatement = dbConnection.prepareStatement(insertStmtString);
 
         //add the first node
         preparedStatement.setString(1, "/a/b");
         preparedStatement.setLong(2, 1);
         preparedStatement.setNull(3, Types.BIGINT);
+        preparedStatement.setString(4, "/a");
 
         preparedStatement.execute();
 
@@ -153,6 +154,7 @@ public class PostgresSqlStorageTest{
         preparedStatement.setString(1, "/a/b");
         preparedStatement.setLong(2, 2);
         preparedStatement.setNull(3, Types.BIGINT);
+        preparedStatement.setString(4, "/a");
 
         preparedStatement.execute();
 
@@ -166,6 +168,7 @@ public class PostgresSqlStorageTest{
         preparedStatement.setString(1, "/a/b");
         preparedStatement.setLong(2, 3);
         preparedStatement.setLong(3, 4);
+        preparedStatement.setString(4, "/a");
 
         preparedStatement.execute();
 
@@ -178,17 +181,19 @@ public class PostgresSqlStorageTest{
 
     @Test
     public void testDeleteNode() throws SQLException {
-        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision) VALUES (?, ?)";
+        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision, parent_path) VALUES (?, ?, ?)";
         PreparedStatement preparedStatement = dbConnection.prepareStatement(insertStmtString);
 
         //add the first node
         preparedStatement.setString(1, "/a/b");
         preparedStatement.setLong(2, 1);
+        preparedStatement.setString(3, "/a");
         preparedStatement.execute();
 
         //add second revision
         preparedStatement.setString(1, "/a/b");
         preparedStatement.setLong(2, 2);
+        preparedStatement.setString(3, "/a");
         preparedStatement.execute();
 
         dbStorage.deleteNode("/a/b", 3);

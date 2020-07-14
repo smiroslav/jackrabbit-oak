@@ -3,7 +3,9 @@ package org.apache.jackrabbit.oak.store.remote.store.db;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.db.ConnectionPool;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -30,17 +32,22 @@ import static org.junit.Assert.assertTrue;
 public class PostgresSqlStorageTest{
 
 
-    @Rule
-    public PostgreSQLContainer postgreSQLContainer = new PostgreSQLContainer();
+    @ClassRule
+    public static PostgreSQLContainer postgreSQLContainer = new PostgreSQLContainer();
+
     private Connection dbConnection;
 
     private DbStorage dbStorage;
 
     private static final String TABLE = "persistence1.nodes";
 
+    @BeforeClass
+    public static void beforeClass() {
+        postgreSQLContainer.start();
+    }
+
     @Before
     public void setup() throws SQLException {
-        postgreSQLContainer.start();
 
         Properties props = new Properties();
         props.setProperty("user", postgreSQLContainer.getUsername());
@@ -80,7 +87,14 @@ public class PostgresSqlStorageTest{
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws SQLException {
+        Statement statement = dbConnection.createStatement();
+        statement.execute("DROP SCHEMA persistence1 CASCADE;");
+        dbConnection.close();
+    }
+
+    @AfterClass
+    public static void afterClass() {
         postgreSQLContainer.stop();
     }
 

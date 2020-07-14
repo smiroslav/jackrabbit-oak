@@ -38,14 +38,15 @@ public class DbStorage implements Storage {
         setDeletedRevisionStmtString = " UPDATE "+tableName+" SET revision_deleted = ? " +
                                        " WHERE path = ? AND revision = ?";
         getSubtreeStmtString = "" +
-                "SELECT a.path, a.revision FROM "+tableName+" a\n" +
+                "SELECT a.path, a.revision, a.properties FROM "+tableName+" a\n" +
                 "INNER JOIN (\n" +
-                "\tSELECT path, MAX(revision) as revision\n" +
-                "    FROM persistence1.nods\n" +
-                "\tWHERE path >= '/a/b' AND path < '/a/b~'\n" +
-                "    GROUP BY path\n" +
+                "  SELECT path, MAX(revision) as revision\n" +
+                "  FROM "+tableName+"\n" +
+                "  WHERE path = ? OR path LIKE ?\n" +
+                "  GROUP BY path\n" +
                 ") as b ON a.path = b.path AND a.revision = b.revision\n" +
-                "WHERE a.path >= '/a/b' AND a.path < '/a/b~' AND a.revision_deleted IS NULL AND a.revision <= 3"
+                "WHERE (a.path = ? OR a.path LIKE ?) AND (a.revision_deleted IS NULL OR a.revision_deleted = 0) AND a.revision <= ? " +
+                "ORDER BY a.path ";
         try {
             currentRevision  = new AtomicLong(getCurrentRevisionFromTable());
         } catch (SQLException e) {
@@ -166,7 +167,38 @@ public class DbStorage implements Storage {
 
     @Override
     public TreeMap<String, Node> getNodeAndSubtree(String path, long revision, boolean wholeSubtree) {
-        return null;
+        try (Connection connection = connectionPool.getConnection()) {
+
+            PreparedStatement preparedStatement = connection.prepareStatement(getSubtreeStmtString);
+            //String pathUntil = path.equals("/") ? "/"+ '\u007E' : path.substring(0, path.lastIndexOf("/") + 1) + '\u007E';
+            preparedStatement.setString(1, path);
+            preparedStatement.setString(2, path + "/%");
+            preparedStatement.setString(3, path);
+            preparedStatement.setString(4, path + "/%");
+            preparedStatement.setLong(5, revision);
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            TreeMap<String, Node> result = new TreeMap<>();
+
+            while (resultSet.next()) {
+                String nodePath = resultSet.getString(1);
+                Long nodeRevision = resultSet.getLong(2);
+                Map<String, PropertyState> nodeProperties = deserializeProperties(resultSet.getString(3));
+
+                String matchPath = path.equals("/")? "" : path;
+                if (!wholeSubtree && !nodePath.equals(path) && !nodePath.matches(matchPath + "(/[^/]+)?")) {
+                    break;
+                }
+
+                Node node = new Node(nodePath.substring(nodePath.lastIndexOf('/') + 1), nodeProperties, nodeRevision);
+                result.put(nodePath, node);
+            }
+
+            return result;
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
     }
 
     @Override

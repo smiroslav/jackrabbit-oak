@@ -24,6 +24,7 @@ public class DbStorage implements Storage {
     private final String insertStmtString;
     private final String getNodeStmtString;
     private final String setDeletedRevisionStmtString;
+    private final String getSubtreeStmtString;
     private final AtomicLong currentRevision;
 
     public DbStorage(ConnectionPool connectionPool, String tableName) {
@@ -36,6 +37,15 @@ public class DbStorage implements Storage {
                             " ORDER BY revision DESC";
         setDeletedRevisionStmtString = " UPDATE "+tableName+" SET revision_deleted = ? " +
                                        " WHERE path = ? AND revision = ?";
+        getSubtreeStmtString = "" +
+                "SELECT a.path, a.revision FROM "+tableName+" a\n" +
+                "INNER JOIN (\n" +
+                "\tSELECT path, MAX(revision) as revision\n" +
+                "    FROM persistence1.nods\n" +
+                "\tWHERE path >= '/a/b' AND path < '/a/b~'\n" +
+                "    GROUP BY path\n" +
+                ") as b ON a.path = b.path AND a.revision = b.revision\n" +
+                "WHERE a.path >= '/a/b' AND a.path < '/a/b~' AND a.revision_deleted IS NULL AND a.revision <= 3"
         try {
             currentRevision  = new AtomicLong(getCurrentRevisionFromTable());
         } catch (SQLException e) {

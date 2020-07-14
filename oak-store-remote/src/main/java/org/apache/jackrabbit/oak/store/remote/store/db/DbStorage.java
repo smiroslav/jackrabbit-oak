@@ -44,13 +44,14 @@ public class DbStorage implements Storage {
     }
 
     private long getCurrentRevisionFromTable() throws SQLException {
-        Connection connection = connectionPool.getConnection();
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT MAX(revision) FROM "+tableName);
-        if (resultSet.next()) {
-            return  resultSet.getLong(1);
-        } else {
-            return -1;
+        try (Connection connection = connectionPool.getConnection()) {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT MAX(revision) FROM "+tableName);
+            if (resultSet.next()) {
+                return  resultSet.getLong(1);
+            } else {
+                return -1;
+            }
         }
     }
 
@@ -65,16 +66,18 @@ public class DbStorage implements Storage {
     }
 
     private void insertNewNode(String path, long currentRevision, Iterable<? extends PropertyState> properties) throws SQLException {
-        Connection connection = connectionPool.getConnection();
-        PreparedStatement insertStmt = connection.prepareStatement(insertStmtString);
-        insertStmt.setString(1, path);
-        insertStmt.setLong(2, getCurrentRevision());
-        insertStmt.setString(3, serializeProperties(properties));
+        try (Connection connection = connectionPool.getConnection()) {
+            PreparedStatement insertStmt = connection.prepareStatement(insertStmtString);
+            insertStmt.setString(1, path);
+            insertStmt.setLong(2, getCurrentRevision());
+            insertStmt.setString(3, serializeProperties(properties));
 
-        insertStmt.execute();
+            insertStmt.execute();
+        }
     }
 
     private String serializeProperties(Iterable<? extends PropertyState> properties) {
+        //TODO
         return "";
     }
 
@@ -85,8 +88,7 @@ public class DbStorage implements Storage {
 
     @Override
     public void deleteNode(String path, long revision) {
-        try {
-            Connection connection = connectionPool.getConnection();
+        try (Connection connection = connectionPool.getConnection()) {
             PreparedStatement preparedStatement = connection.prepareStatement(getNodeStmtString, ResultSet.TYPE_SCROLL_INSENSITIVE,
                     ResultSet.CONCUR_READ_ONLY);
             preparedStatement.setString(1, path);
@@ -118,8 +120,7 @@ public class DbStorage implements Storage {
 
     @Override
     public Node getNode(String path, long revision) {
-        try {
-            Connection connection = connectionPool.getConnection();
+        try (Connection connection = connectionPool.getConnection()) {
             PreparedStatement preparedStatement = connection.prepareStatement(getNodeStmtString, ResultSet.TYPE_SCROLL_INSENSITIVE,
                     ResultSet.CONCUR_READ_ONLY);
             preparedStatement.setString(1, path);

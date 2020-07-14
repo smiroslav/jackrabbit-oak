@@ -71,6 +71,7 @@ public class PostgresSqlStorageTest{
                 "CREATE TABLE "+TABLE+"\n" +
                 "(\n" +
                 "    path character varying COLLATE pg_catalog.\"default\" NOT NULL,\n" +
+                "    parent_path character varying COLLATE pg_catalog.\"default\" NOT NULL,\n" +
                 "    revision bigint NOT NULL,\n" +
                 "    revision_deleted bigint,\n" +
                 "    properties character varying COLLATE pg_catalog.\"default\",\n" +
@@ -84,7 +85,12 @@ public class PostgresSqlStorageTest{
                 "    ON "+TABLE+" USING btree" +
                 "    (path COLLATE pg_catalog.\"default\" ASC NULLS LAST)" +
                 //"    INCLUDE(revision, revision_deleted, properties)" +
-                "    TABLESPACE pg_default;");
+                "    TABLESPACE pg_default;" +
+                "\n" +
+                "CREATE INDEX parent_path" +
+                "   ON "+TABLE+" USING btree" +
+                "   (path COLLATE pg_catalog.\"default\" ASC NULLS LAST)"+
+                "   TABLESPACE pg_default;");
     }
 
     @After
@@ -116,7 +122,15 @@ public class PostgresSqlStorageTest{
 
         assertTrue(resultSet.first());
         assertEquals("/a", resultSet.getString("path"));
+        assertEquals("/", resultSet.getString("parent_path"));
         assertFalse(resultSet.next());
+
+        dbStorage.addNode("/a/b/c", Collections.emptyList());
+
+        resultSet = statement.executeQuery("SELECT * FROM "+TABLE+" WHERE path = '/a/b/c'");
+        assertTrue(resultSet.first());
+        assertEquals("/a/b/c", resultSet.getString("path"));
+        assertEquals("/a/b", resultSet.getString("parent_path"));
     }
 
     @Test
@@ -200,72 +214,85 @@ public class PostgresSqlStorageTest{
 
     @Test
     public void testGetNodeAndSubtree() throws SQLException {
-        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision, revision_deleted) VALUES (?, ?, ?)";
+        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision, revision_deleted, parent_path) VALUES (?, ?, ?, ?)";
         PreparedStatement preparedStatement = dbConnection.prepareStatement(insertStmtString);
 
         preparedStatement.setString(1, "/a");
         preparedStatement.setLong(2, 1);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b");
         preparedStatement.setLong(2, 1);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b");
         preparedStatement.setLong(2, 2);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/d");
         preparedStatement.setLong(2, 1);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a/b");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/d/e");
         preparedStatement.setLong(2, 1);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a/b/d");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/d");
         preparedStatement.setLong(2, 2);
         preparedStatement.setLong(3, 3);
+        preparedStatement.setString(4, "/a/b");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/d/e");
         preparedStatement.setLong(2, 2);
         preparedStatement.setLong(3, 3);
+        preparedStatement.setString(4, "/a/b/d");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/c");
         preparedStatement.setLong(2, 1);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/f");
         preparedStatement.setLong(2, 1);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a/b");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/f/f1");
         preparedStatement.setLong(2, 1);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a/b/f");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/f/f2");
         preparedStatement.setLong(2, 1);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a/b/f");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/f/f2");
         preparedStatement.setLong(2, 2);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a/b/f");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/g");
         preparedStatement.setLong(2, 1);
         preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a/b");
         preparedStatement.execute();
 
         TreeMap<String, Node> result =  dbStorage.getNodeAndSubtree("/a/b", 5, true);
@@ -293,15 +320,20 @@ public class PostgresSqlStorageTest{
         preparedStatement.setString(1, "/a/b/f/f2");
         preparedStatement.setLong(2, 3);
         preparedStatement.setLong(3, 3);
+        preparedStatement.setString(4, "/a/b/f");
         preparedStatement.execute();
 
         result =  dbStorage.getNodeAndSubtree("/a/b", 5, true);
         assertEquals(4, result.size());
         assertNull(result.get("/a/b/f/f2"));
 
-//        //test fetching just direct child nodes
-//        result =  dbStorage.getNodeAndSubtree("/a/b", 5, false);
-//
-//        assertEquals(3, result.size());
+        //test fetching just direct child nodes
+        result =  dbStorage.getNodeAndSubtree("/a/b", 5, false);
+
+        assertEquals(3, result.size());
+        assertNotNull(result.get("/a/b"));
+        assertEquals(2, result.get("/a/b").getRevision());
+        assertNotNull(result.get("/a/b/f"));
+        assertNotNull(result.get("/a/b/g"));
     }
 }

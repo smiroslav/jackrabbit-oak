@@ -11,7 +11,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -25,12 +24,13 @@ public class DbStorage implements Storage {
     private final String getNodeStmtString;
     private final String setDeletedRevisionStmtString;
     private final String getSubtreeStmtString;
+    private final String getChildNodesStmtString;
     private final AtomicLong currentRevision;
 
     public DbStorage(ConnectionPool connectionPool, String tableName) {
         this.connectionPool = connectionPool;
         this.tableName = tableName;
-        insertStmtString = "INSERT INTO "+tableName+" (path, revision, properties) VALUES (?, ?, ?)";
+        insertStmtString = "INSERT INTO "+tableName+" (path, revision, properties, parent_path) VALUES (?, ?, ?, ?)";
         getNodeStmtString = " SELECT path, revision, revision_deleted, properties FROM "+tableName+" " +
                             //" WHERE path = ? AND (revision_deleted IS NULL OR revision_deleted > ?) " +
                             " WHERE path = ? AND (revision <= ?) " +
@@ -47,6 +47,18 @@ public class DbStorage implements Storage {
                 ") as b ON a.path = b.path AND a.revision = b.revision\n" +
                 "WHERE (a.path = ? OR a.path LIKE ?) AND (a.revision_deleted IS NULL OR a.revision_deleted = 0) AND a.revision <= ? " +
                 "ORDER BY a.path ";
+
+        getChildNodesStmtString = "" +
+                "SELECT a.path, a.revision, a.properties FROM "+tableName+" a\n" +
+                "INNER JOIN (\n" +
+                "  SELECT path, MAX(revision) as revision\n" +
+                "  FROM "+tableName+"\n" +
+                "  WHERE path = ? OR parent_path = ?\n" +
+                "  GROUP BY path\n" +
+                ") as b ON a.path = b.path AND a.revision = b.revision\n" +
+                "WHERE (a.path = ? OR parent_path = ?) AND (a.revision_deleted IS NULL OR a.revision_deleted = 0) AND a.revision <= ? " +
+                "ORDER BY a.path ";
+
         try {
             currentRevision  = new AtomicLong(getCurrentRevisionFromTable());
         } catch (SQLException e) {
@@ -82,6 +94,15 @@ public class DbStorage implements Storage {
             insertStmt.setString(1, path);
             insertStmt.setLong(2, getCurrentRevision());
             insertStmt.setString(3, serializeProperties(properties));
+            String parentPath = "";
+            if (!path.equals("/")) {
+                if (path.lastIndexOf("/") == 0) {
+                    parentPath = "/";
+                } else {
+                    parentPath = path.substring(0, path.lastIndexOf("/"));
+                }
+            }
+            insertStmt.setString(4, parentPath);
 
             insertStmt.execute();
         }
@@ -168,31 +189,53 @@ public class DbStorage implements Storage {
     @Override
     public TreeMap<String, Node> getNodeAndSubtree(String path, long revision, boolean wholeSubtree) {
         try (Connection connection = connectionPool.getConnection()) {
-
-            PreparedStatement preparedStatement = connection.prepareStatement(getSubtreeStmtString);
-            //String pathUntil = path.equals("/") ? "/"+ '\u007E' : path.substring(0, path.lastIndexOf("/") + 1) + '\u007E';
-            preparedStatement.setString(1, path);
-            preparedStatement.setString(2, path + "/%");
-            preparedStatement.setString(3, path);
-            preparedStatement.setString(4, path + "/%");
-            preparedStatement.setLong(5, revision);
-
-            ResultSet resultSet = preparedStatement.executeQuery();
-
             TreeMap<String, Node> result = new TreeMap<>();
 
-            while (resultSet.next()) {
-                String nodePath = resultSet.getString(1);
-                Long nodeRevision = resultSet.getLong(2);
-                Map<String, PropertyState> nodeProperties = deserializeProperties(resultSet.getString(3));
+            if (wholeSubtree) {
+                PreparedStatement preparedStatement = connection.prepareStatement(getSubtreeStmtString);
+                //String pathUntil = path.equals("/") ? "/"+ '\u007E' : path.substring(0, path.lastIndexOf("/") + 1) + '\u007E';
+                preparedStatement.setString(1, path);
+                preparedStatement.setString(2, path + "/%");
+                preparedStatement.setString(3, path);
+                preparedStatement.setString(4, path + "/%");
+                preparedStatement.setLong(5, revision);
 
-                String matchPath = path.equals("/")? "" : path;
-                if (!wholeSubtree && !nodePath.equals(path) && !nodePath.matches(matchPath + "(/[^/]+)?")) {
-                    break;
+                ResultSet resultSet = preparedStatement.executeQuery();
+
+
+                while (resultSet.next()) {
+                    String nodePath = resultSet.getString(1);
+                    Long nodeRevision = resultSet.getLong(2);
+                    Map<String, PropertyState> nodeProperties = deserializeProperties(resultSet.getString(3));
+
+                    String matchPath = path.equals("/")? "" : path;
+    //                if (!wholeSubtree && !nodePath.equals(path) && !nodePath.matches(matchPath + "(/[^/]+)?")) {
+    //                    break;
+    //                }
+    //
+                    Node node = new Node(nodePath.substring(nodePath.lastIndexOf('/') + 1), nodeProperties, nodeRevision);
+                    result.put(nodePath, node);
                 }
+            } else {
+                PreparedStatement preparedStatement = connection.prepareStatement(getChildNodesStmtString);
 
-                Node node = new Node(nodePath.substring(nodePath.lastIndexOf('/') + 1), nodeProperties, nodeRevision);
-                result.put(nodePath, node);
+                preparedStatement.setString(1, path);
+                preparedStatement.setString(2, path);
+                preparedStatement.setString(3, path);
+                preparedStatement.setString(4, path);
+                preparedStatement.setLong(5, revision);
+
+                ResultSet resultSet = preparedStatement.executeQuery();
+
+
+                while (resultSet.next()) {
+                    String nodePath = resultSet.getString(1);
+                    Long nodeRevision = resultSet.getLong(2);
+                    Map<String, PropertyState> nodeProperties = deserializeProperties(resultSet.getString(3));
+
+                    Node node = new Node(nodePath.substring(nodePath.lastIndexOf('/') + 1), nodeProperties, nodeRevision);
+                    result.put(nodePath, node);
+                }
             }
 
             return result;

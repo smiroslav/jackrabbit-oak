@@ -60,7 +60,7 @@ public class DbStorage implements Storage {
                 "ORDER BY a.path ";
 
         try {
-            currentRevision  = new AtomicLong(getCurrentRevisionFromTable());
+            currentRevision  = new AtomicLong(getCurrentRevisionFromTable() + 1);
         } catch (SQLException e) {
             throw new StorageException(e);
         }
@@ -181,7 +181,7 @@ public class DbStorage implements Storage {
 
     @Override
     public Node getRootNode() {
-        return null;
+        return getNode("/", getCurrentRevision());
     }
 
     @Override
@@ -264,11 +264,11 @@ public class DbStorage implements Storage {
 
     @Override
     public long incrementRevisionNumber() {
-        return 0;
+        return currentRevision.incrementAndGet();
     }
 
     @Override
     public long getCurrentRevision() {
-        return 1;
+        return currentRevision.get();
     }
 }

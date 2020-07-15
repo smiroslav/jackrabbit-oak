@@ -385,4 +385,22 @@ public class PostgresSqlStorageTest{
         assertNotNull(tree.get("/a/e/d"));
         assertNotNull(tree.get("/a/e/c"));
     }
+
+    @Test
+    public void testGetRootNode() throws SQLException {
+
+        dbStorage.addNode("/", Collections.emptyList());
+        dbStorage.incrementRevisionNumber();
+
+        dbStorage.addNode("/", Collections.emptyList());
+        dbStorage.incrementRevisionNumber();
+
+        dbStorage.addNode("/", Collections.emptyList());
+        dbStorage.incrementRevisionNumber();
+
+        Node root = dbStorage.getRootNode();
+
+        assertNotNull(root);
+        assertEquals(3, root.getRevision());
+    }
 }

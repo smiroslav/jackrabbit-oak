@@ -193,7 +193,6 @@ public class DbStorage implements Storage {
 
             if (wholeSubtree) {
                 PreparedStatement preparedStatement = connection.prepareStatement(getSubtreeStmtString);
-                //String pathUntil = path.equals("/") ? "/"+ '\u007E' : path.substring(0, path.lastIndexOf("/") + 1) + '\u007E';
                 preparedStatement.setString(1, path);
                 preparedStatement.setString(2, path + "/%");
                 preparedStatement.setString(3, path);
@@ -208,11 +207,6 @@ public class DbStorage implements Storage {
                     Long nodeRevision = resultSet.getLong(2);
                     Map<String, PropertyState> nodeProperties = deserializeProperties(resultSet.getString(3));
 
-                    String matchPath = path.equals("/")? "" : path;
-    //                if (!wholeSubtree && !nodePath.equals(path) && !nodePath.matches(matchPath + "(/[^/]+)?")) {
-    //                    break;
-    //                }
-    //
                     Node node = new Node(nodePath.substring(nodePath.lastIndexOf('/') + 1), nodeProperties, nodeRevision);
                     result.put(nodePath, node);
                 }

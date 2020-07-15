@@ -131,9 +131,11 @@ public class MemoryStorage implements Storage{
 
             path = path.replace(fromPath, toPath);
             List<Node> revisions = entry.getValue();
-            revisions.get(revisions.size() - 1).setRevisionDeleted(Long.MAX_VALUE);
-            movedNodes.put(path, revisions);
-            nodesIterator.remove();
+            Node lastRevision = revisions.get(revisions.size() - 1);
+            Node lastRevisionClone = new Node(lastRevision.getName(), lastRevision.getProperties(), getCurrentRevision());
+            List<Node> movedNodeRevisions = new ArrayList<>();
+            movedNodeRevisions.add(lastRevisionClone);
+            movedNodes.put(path, movedNodeRevisions);
         }
 
         tree.putAll(movedNodes);

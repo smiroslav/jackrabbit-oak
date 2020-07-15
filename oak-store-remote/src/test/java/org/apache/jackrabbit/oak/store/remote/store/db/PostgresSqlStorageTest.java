@@ -341,4 +341,48 @@ public class PostgresSqlStorageTest{
         assertNotNull(result.get("/a/b/f"));
         assertNotNull(result.get("/a/b/g"));
     }
+
+    @Test
+    public void testMoveChildNodes() throws SQLException {
+        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision, revision_deleted, parent_path) VALUES (?, ?, ?, ?)";
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(insertStmtString);
+
+        preparedStatement.setString(1, "/a");
+        preparedStatement.setLong(2, 1);
+        preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/");
+        preparedStatement.execute();
+
+        preparedStatement.setString(1, "/a/b");
+        preparedStatement.setLong(2, 1);
+        preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a");
+        preparedStatement.execute();
+
+        preparedStatement.setString(1, "/a/b/d");
+        preparedStatement.setLong(2, 1);
+        preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a/b");
+        preparedStatement.execute();
+
+        preparedStatement.setString(1, "/a/b/c");
+        preparedStatement.setLong(2, 1);
+        preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a/b");
+        preparedStatement.execute();
+
+        preparedStatement.setString(1, "/a/e");
+        preparedStatement.setLong(2, 1);
+        preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setString(4, "/a");
+        preparedStatement.execute();
+
+        dbStorage.moveChildNodes("/a/b", "/a/e");
+
+        TreeMap<String, Node> tree = dbStorage.getNodeAndSubtree("/a/e", 5, true);
+
+        assertEquals(3, tree.size());
+        assertNotNull(tree.get("/a/e/d"));
+        assertNotNull(tree.get("/a/e/c"));
+    }
 }

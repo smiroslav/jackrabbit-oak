@@ -81,31 +81,29 @@ public class DbStorage implements Storage {
     @Override
     public void addNode(String path, Iterable<? extends PropertyState> properties) {
 
-        try {
-            insertNewNode(path, getCurrentRevision(), properties);
+        try (Connection connection = connectionPool.getConnection()) {
+            PreparedStatement insertStmt = connection.prepareStatement(insertStmtString);
+            insertNewNode(path, properties, insertStmt);
         } catch (SQLException e) {
             new StorageException(e);
         }
     }
 
-    private void insertNewNode(String path, long currentRevision, Iterable<? extends PropertyState> properties) throws SQLException {
-        try (Connection connection = connectionPool.getConnection()) {
-            PreparedStatement insertStmt = connection.prepareStatement(insertStmtString);
-            insertStmt.setString(1, path);
-            insertStmt.setLong(2, getCurrentRevision());
-            insertStmt.setString(3, serializeProperties(properties));
-            String parentPath = "";
-            if (!path.equals("/")) {
-                if (path.lastIndexOf("/") == 0) {
-                    parentPath = "/";
-                } else {
-                    parentPath = path.substring(0, path.lastIndexOf("/"));
-                }
+    private void insertNewNode(String path, Iterable<? extends PropertyState> properties, PreparedStatement insertStmt) throws SQLException {
+        insertStmt.setString(1, path);
+        insertStmt.setLong(2, getCurrentRevision());
+        insertStmt.setString(3, serializeProperties(properties));
+        String parentPath = "";
+        if (!path.equals("/")) {
+            if (path.lastIndexOf("/") == 0) {
+                parentPath = "/";
+            } else {
+                parentPath = path.substring(0, path.lastIndexOf("/"));
             }
-            insertStmt.setString(4, parentPath);
-
-            insertStmt.execute();
         }
+        insertStmt.setString(4, parentPath);
+
+        insertStmt.execute();
     }
 
     private String serializeProperties(Iterable<? extends PropertyState> properties) {
@@ -241,6 +239,27 @@ public class DbStorage implements Storage {
     @Override
     public void moveChildNodes(String fromPath, String toPath) {
 
+        TreeMap<String, Node> subtree = getNodeAndSubtree(fromPath, getCurrentRevision(), true);
+
+        try (Connection connection = connectionPool.getConnection()) {
+            PreparedStatement insertStmt = connection.prepareStatement(insertStmtString);
+            connection.setAutoCommit(false);
+
+            for (String nodePath : subtree.keySet()) {
+                if (nodePath.equals(fromPath)) {
+                    continue;
+                }
+
+                Node nodeToMove = subtree.get(nodePath);
+                String newPath = nodePath.replace(fromPath, toPath);
+
+                insertNewNode(newPath, nodeToMove.getProperties().values(), insertStmt);
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
     }
 
     @Override

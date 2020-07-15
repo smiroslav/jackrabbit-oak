@@ -1,5 +1,7 @@
 package org.apache.jackrabbit.oak.store.remote.store.db;
 
+import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.db.ConnectionPool;
 import org.junit.After;
@@ -11,6 +13,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+import javax.jcr.PropertyType;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -20,7 +23,9 @@ import java.sql.SQLException;
 import java.sql.SQLType;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.TreeMap;
 
@@ -402,5 +407,19 @@ public class PostgresSqlStorageTest{
 
         assertNotNull(root);
         assertEquals(3, root.getRevision());
+    }
+
+    @Test
+    public void testSerializeProperties() {
+
+        List<PropertyState> props = new ArrayList<>();
+        PropertyState prop1 = PropertyStates.createProperty("prop1", "val1", PropertyType.STRING);
+        PropertyState prop2 = PropertyStates.createProperty("prop1", "5", PropertyType.LONG);
+
+        props.add(prop1);
+        props.add(prop2);
+        String serialised = dbStorage.serializeProperties(props);
+
+        assertNotNull(serialised);
     }
 }

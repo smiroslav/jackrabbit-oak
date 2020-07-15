@@ -1,6 +1,12 @@
 package org.apache.jackrabbit.oak.store.remote.store.db;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.commons.json.JsonObject;
+import org.apache.jackrabbit.oak.plugins.memory.LongPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
+import org.apache.jackrabbit.oak.plugins.memory.StringPropertyState;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.Storage;
 import org.apache.jackrabbit.oak.store.remote.store.StorageException;
@@ -12,6 +18,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collections;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -106,9 +113,22 @@ public class DbStorage implements Storage {
         insertStmt.execute();
     }
 
-    private String serializeProperties(Iterable<? extends PropertyState> properties) {
+    String serializeProperties(Iterable<? extends PropertyState> properties) {
         //TODO
-        return "";
+        //PropertyStates
+
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        gsonBuilder.registerTypeAdapter(StringPropertyState.class, new PropertyStateSerializer());
+        gsonBuilder.registerTypeAdapter(LongPropertyState.class, new PropertyStateSerializer());
+        Gson gson = gsonBuilder.create();
+        //StringBuffer result = new StringBuffer("[");
+
+        StringJoiner joiner = new StringJoiner(",", "[", "]");
+        for (PropertyState propertyState : properties) {
+            joiner.add(gson.toJson(propertyState));
+        }
+
+        return joiner.toString();
     }
 
     @Override

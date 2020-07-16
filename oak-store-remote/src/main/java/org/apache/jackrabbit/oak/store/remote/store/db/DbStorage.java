@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 public class DbStorage implements Storage {
 
@@ -172,15 +173,16 @@ public class DbStorage implements Storage {
     }
 
     String serializeProperties(Iterable<? extends PropertyState> properties) {
-        return  gson.toJson(properties);
+        return  gson.toJson(properties == null ? "[]" : properties);
     }
 
     Map<String, PropertyState> deserializeProperties(String properties) {
+
         Type collectionType = new TypeToken<ArrayList<? extends PropertyState>>(){}.getType();
         System.out.println(properties);
         ArrayList<? extends PropertyState> list =  this.gson.fromJson(properties, collectionType);
 
-        return Collections.emptyMap();
+        return list.stream().collect(Collectors.toMap(PropertyState::getName, propertyState -> propertyState));
     }
 
     @Override

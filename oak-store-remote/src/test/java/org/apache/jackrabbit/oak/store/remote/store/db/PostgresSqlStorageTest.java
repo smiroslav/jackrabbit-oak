@@ -1,6 +1,7 @@
 package org.apache.jackrabbit.oak.store.remote.store.db;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.db.ConnectionPool;
@@ -414,12 +415,28 @@ public class PostgresSqlStorageTest{
 
         List<PropertyState> props = new ArrayList<>();
         PropertyState prop1 = PropertyStates.createProperty("prop1", "val1", PropertyType.STRING);
-        PropertyState prop2 = PropertyStates.createProperty("prop1", "5", PropertyType.LONG);
+        PropertyState prop2 = PropertyStates.createProperty("prop2", "5", PropertyType.LONG);
+        List<String> strings = new ArrayList<>();
+        strings.add("elem1");
+        strings.add("elem2");
+        strings.add("elem3");
+        PropertyState prop3 = PropertyStates.createProperty("prop3", (Object) strings, Type.STRINGS);
 
         props.add(prop1);
         props.add(prop2);
+        props.add(prop3);
         String serialised = dbStorage.serializeProperties(props);
 
         assertNotNull(serialised);
+
+        dbStorage.deserializeProperties(serialised);
+    }
+
+    @Test
+    public void testDeserializeProperties() {
+        String serialized = "[{\"name\":\"prop1\",\"isArray\":false,\"type\":1,\"value\":\"val1\"},{\"name\":\"prop2\",\"isArray\":false,\"type\":3,\"value\":\"5\"},{\"name\":\"prop3\",\"isArray\":true,\"type\":1,\"value\":[\"elem1\",\"elem2\",\"elem3\"]}]";
+        //String serialized = "[{\"name\":\"prop1\",\"isArray\":false,\"type\":1,\"value\":\"val1\"},{\"name\":\"prop2\",\"isArray\":false,\"type\":3,\"value\":\"5\"}]";
+
+        dbStorage.deserializeProperties(serialized);
     }
 }

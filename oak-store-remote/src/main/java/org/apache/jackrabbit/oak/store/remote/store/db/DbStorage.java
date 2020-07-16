@@ -2,20 +2,33 @@ package org.apache.jackrabbit.oak.store.remote.store.db;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.commons.json.JsonObject;
+import org.apache.jackrabbit.oak.plugins.memory.BinaryPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.BooleanPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.DecimalPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.DoublePropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.LongPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.MultiBinaryPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.MultiBooleanPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.MultiDecimalPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.MultiDoublePropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.MultiLongPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.MultiStringPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.plugins.memory.StringPropertyState;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.Storage;
 import org.apache.jackrabbit.oak.store.remote.store.StorageException;
 
+import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -33,6 +46,8 @@ public class DbStorage implements Storage {
     private final String getSubtreeStmtString;
     private final String getChildNodesStmtString;
     private final AtomicLong currentRevision;
+
+    private Gson gson;
 
     public DbStorage(ConnectionPool connectionPool, String tableName) {
         this.connectionPool = connectionPool;
@@ -71,6 +86,49 @@ public class DbStorage implements Storage {
         } catch (SQLException e) {
             throw new StorageException(e);
         }
+
+        initPropertySerializer();
+    }
+
+    private void initPropertySerializer() {
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        PropertyStateSerializer propertyStateSerializer = new PropertyStateSerializer();
+        PropertyStateDeserializer propertyStateDeserializer = new PropertyStateDeserializer();
+
+        gsonBuilder.registerTypeAdapter(PropertyState.class, new PropertyStateInstanceCreator());
+
+        //single
+        gsonBuilder.registerTypeAdapter(StringPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(LongPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(BinaryPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(DoublePropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(BooleanPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(DecimalPropertyState.class, propertyStateSerializer);
+        //multi
+        gsonBuilder.registerTypeAdapter(MultiStringPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(MultiBinaryPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(MultiLongPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(MultiDoublePropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(MultiBooleanPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(MultiDecimalPropertyState.class, propertyStateSerializer);
+
+        //single
+        gsonBuilder.registerTypeAdapter(PropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(StringPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(LongPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(BinaryPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(DoublePropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(BooleanPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(DecimalPropertyState.class, propertyStateDeserializer);
+        //multi
+        gsonBuilder.registerTypeAdapter(MultiStringPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(MultiBinaryPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(MultiLongPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(MultiDoublePropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(MultiBooleanPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(MultiDecimalPropertyState.class, propertyStateDeserializer);
+
+        this.gson = gsonBuilder.create();
     }
 
     private long getCurrentRevisionFromTable() throws SQLException {
@@ -114,21 +172,15 @@ public class DbStorage implements Storage {
     }
 
     String serializeProperties(Iterable<? extends PropertyState> properties) {
-        //TODO
-        //PropertyStates
+        return  gson.toJson(properties);
+    }
 
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        gsonBuilder.registerTypeAdapter(StringPropertyState.class, new PropertyStateSerializer());
-        gsonBuilder.registerTypeAdapter(LongPropertyState.class, new PropertyStateSerializer());
-        Gson gson = gsonBuilder.create();
-        //StringBuffer result = new StringBuffer("[");
+    Map<String, PropertyState> deserializeProperties(String properties) {
+        Type collectionType = new TypeToken<ArrayList<? extends PropertyState>>(){}.getType();
+        System.out.println(properties);
+        ArrayList<? extends PropertyState> list =  this.gson.fromJson(properties, collectionType);
 
-        StringJoiner joiner = new StringJoiner(",", "[", "]");
-        for (PropertyState propertyState : properties) {
-            joiner.add(gson.toJson(propertyState));
-        }
-
-        return joiner.toString();
+        return Collections.emptyMap();
     }
 
     @Override
@@ -192,11 +244,6 @@ public class DbStorage implements Storage {
         } catch (SQLException e) {
             throw new StorageException(e);
         }
-    }
-
-    private Map<String, PropertyState> deserializeProperties(String properties) {
-        //TODO
-        return Collections.emptyMap();
     }
 
     @Override

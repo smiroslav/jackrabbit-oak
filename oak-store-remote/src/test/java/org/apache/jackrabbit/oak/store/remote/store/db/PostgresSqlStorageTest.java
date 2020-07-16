@@ -1,8 +1,14 @@
 package org.apache.jackrabbit.oak.store.remote.store.db;
 
+import org.apache.jackrabbit.commons.cnd.CndImporter;
+import org.apache.jackrabbit.commons.cnd.ParseException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.jcr.Jcr;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
+import org.apache.jackrabbit.oak.spi.blob.FileBlobStore;
+import org.apache.jackrabbit.oak.store.remote.RemoteNodeStore;
+import org.apache.jackrabbit.oak.store.remote.RemoteNodeStoreRepoTest;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
 import org.apache.jackrabbit.oak.store.remote.store.db.ConnectionPool;
 import org.junit.After;
@@ -15,7 +21,14 @@ import org.junit.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import javax.jcr.PropertyType;
+import javax.jcr.Repository;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.SimpleCredentials;
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -27,6 +40,7 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
 
@@ -35,6 +49,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class PostgresSqlStorageTest{
 
@@ -80,7 +95,7 @@ public class PostgresSqlStorageTest{
                 "    parent_path character varying COLLATE pg_catalog.\"default\" NOT NULL,\n" +
                 "    revision bigint NOT NULL,\n" +
                 "    revision_deleted bigint,\n" +
-                "    properties character varying COLLATE pg_catalog.\"default\",\n" +
+                "    properties jsonb,\n" +
                 "    CONSTRAINT nodes_pkey PRIMARY KEY (path, revision)\n" +
                 ")\n" +
                 "\n" +
@@ -120,7 +135,20 @@ public class PostgresSqlStorageTest{
 
     @Test
     public void testAddNode() throws SQLException {
-        dbStorage.addNode("/a", Collections.emptyList());
+        List<PropertyState> props = new ArrayList<>();
+        PropertyState prop1 = PropertyStates.createProperty("prop1", "val1", PropertyType.STRING);
+        PropertyState prop2 = PropertyStates.createProperty("prop2", "5", PropertyType.LONG);
+        List<String> strings = new ArrayList<>();
+        strings.add("elem1");
+        strings.add("elem2");
+        strings.add("elem3");
+        PropertyState prop3 = PropertyStates.createProperty("prop3", (Object) strings, Type.STRINGS);
+
+        props.add(prop1);
+        props.add(prop2);
+        props.add(prop3);
+
+        dbStorage.addNode("/a", props);
 
         Statement statement = dbConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
                 ResultSet.CONCUR_READ_ONLY);
@@ -129,6 +157,10 @@ public class PostgresSqlStorageTest{
         assertTrue(resultSet.first());
         assertEquals("/a", resultSet.getString("path"));
         assertEquals("/", resultSet.getString("parent_path"));
+        Map<String, PropertyState> propertyMap = dbStorage.deserializeProperties(resultSet.getString("properties"));
+        assertEquals(prop1, propertyMap.get("prop1"));
+        assertEquals(prop2, propertyMap.get("prop2"));
+        assertEquals(prop3, propertyMap.get("prop3"));
         assertFalse(resultSet.next());
 
         dbStorage.addNode("/a/b/c", Collections.emptyList());
@@ -137,6 +169,40 @@ public class PostgresSqlStorageTest{
         assertTrue(resultSet.first());
         assertEquals("/a/b/c", resultSet.getString("path"));
         assertEquals("/a/b", resultSet.getString("parent_path"));
+    }
+
+    @Test
+    public void getNodeWithProperties() throws SQLException {
+        List<PropertyState> props = new ArrayList<>();
+        PropertyState prop1 = PropertyStates.createProperty("prop1", "val1", PropertyType.STRING);
+        PropertyState prop2 = PropertyStates.createProperty("prop2", "5", PropertyType.LONG);
+        List<String> strings = new ArrayList<>();
+        strings.add("elem1");
+        strings.add("elem2");
+        strings.add("elem3");
+        PropertyState prop3 = PropertyStates.createProperty("prop3", (Object) strings, Type.STRINGS);
+
+        props.add(prop1);
+        props.add(prop2);
+        props.add(prop3);
+
+        String insertStmtString = "INSERT INTO "+TABLE+" (path, revision, revision_deleted, parent_path, properties) VALUES (?, ?, ?, ?, ?::JSON)";
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(insertStmtString);
+
+        preparedStatement.setString(1, "/a/b");
+        preparedStatement.setLong(2, 1);
+        preparedStatement.setNull(3, Types.BIGINT);
+        preparedStatement.setString(4, "/a");
+        String propsSerialized = dbStorage.serializeProperties(props);
+        preparedStatement.setString(5, propsSerialized);
+
+        preparedStatement.execute();
+
+        Node node = dbStorage.getNode("/a/b", 1);
+        assertEquals(prop1, node.getProperties().get("prop1"));
+        assertEquals(prop2, node.getProperties().get("prop2"));
+        assertEquals(prop3, node.getProperties().get("prop3"));
+
     }
 
     @Test
@@ -408,35 +474,5 @@ public class PostgresSqlStorageTest{
 
         assertNotNull(root);
         assertEquals(3, root.getRevision());
-    }
-
-    @Test
-    public void testSerializeProperties() {
-
-        List<PropertyState> props = new ArrayList<>();
-        PropertyState prop1 = PropertyStates.createProperty("prop1", "val1", PropertyType.STRING);
-        PropertyState prop2 = PropertyStates.createProperty("prop2", "5", PropertyType.LONG);
-        List<String> strings = new ArrayList<>();
-        strings.add("elem1");
-        strings.add("elem2");
-        strings.add("elem3");
-        PropertyState prop3 = PropertyStates.createProperty("prop3", (Object) strings, Type.STRINGS);
-
-        props.add(prop1);
-        props.add(prop2);
-        props.add(prop3);
-        String serialised = dbStorage.serializeProperties(props);
-
-        assertNotNull(serialised);
-
-        dbStorage.deserializeProperties(serialised);
-    }
-
-    @Test
-    public void testDeserializeProperties() {
-        String serialized = "[{\"name\":\"prop1\",\"isArray\":false,\"type\":1,\"value\":\"val1\"},{\"name\":\"prop2\",\"isArray\":false,\"type\":3,\"value\":\"5\"},{\"name\":\"prop3\",\"isArray\":true,\"type\":1,\"value\":[\"elem1\",\"elem2\",\"elem3\"]}]";
-        //String serialized = "[{\"name\":\"prop1\",\"isArray\":false,\"type\":1,\"value\":\"val1\"},{\"name\":\"prop2\",\"isArray\":false,\"type\":3,\"value\":\"5\"}]";
-
-        dbStorage.deserializeProperties(serialized);
     }
 }

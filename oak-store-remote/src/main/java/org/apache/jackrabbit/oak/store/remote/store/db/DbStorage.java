@@ -53,7 +53,7 @@ public class DbStorage implements Storage {
     public DbStorage(ConnectionPool connectionPool, String tableName) {
         this.connectionPool = connectionPool;
         this.tableName = tableName;
-        insertStmtString = "INSERT INTO "+tableName+" (path, revision, properties, parent_path) VALUES (?, ?, ?, ?)";
+        insertStmtString = "INSERT INTO "+tableName+" (path, revision, properties, parent_path) VALUES (?, ?, ?::JSON, ?)";
         getNodeStmtString = " SELECT path, revision, revision_deleted, properties FROM "+tableName+" " +
                             //" WHERE path = ? AND (revision_deleted IS NULL OR revision_deleted > ?) " +
                             " WHERE path = ? AND (revision <= ?) " +
@@ -178,8 +178,10 @@ public class DbStorage implements Storage {
 
     Map<String, PropertyState> deserializeProperties(String properties) {
 
+        if (properties == null || properties.equals("") || properties.equals("[]")) {
+            return Collections.emptyMap();
+        }
         Type collectionType = new TypeToken<ArrayList<? extends PropertyState>>(){}.getType();
-        System.out.println(properties);
         ArrayList<? extends PropertyState> list =  this.gson.fromJson(properties, collectionType);
 
         return list.stream().collect(Collectors.toMap(PropertyState::getName, propertyState -> propertyState));

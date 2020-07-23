@@ -30,6 +30,7 @@ import org.apache.jackrabbit.oak.spi.state.TreeNode;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
+import org.apache.jackrabbit.oak.store.remote.store.Storage;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,7 +46,7 @@ class RemoteNodeState extends AbstractNodeState {
     private BlobStore blobStore = null;
 
     private String path;
-    private MemoryStorage storage;
+    private Storage storage;
 
     Map<String, PropertyState> propertiesMap;
     Node remoteNode;
@@ -54,7 +55,7 @@ class RemoteNodeState extends AbstractNodeState {
 
     private Map<String, Node> childNodes;
 
-    RemoteNodeState(String path, MemoryStorage storage, BlobStore blobStore, long revision) {
+    RemoteNodeState(String path, Storage storage, BlobStore blobStore, long revision) {
         this.path = path;
         this.storage = storage;
         this.blobStore = blobStore;

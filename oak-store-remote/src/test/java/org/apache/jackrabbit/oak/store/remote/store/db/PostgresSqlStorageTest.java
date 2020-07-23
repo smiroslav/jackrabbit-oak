@@ -7,6 +7,7 @@ import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.jcr.Jcr;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.spi.blob.FileBlobStore;
+import org.apache.jackrabbit.oak.store.remote.AbstractRemoteNodeStoreRepoTest;
 import org.apache.jackrabbit.oak.store.remote.RemoteNodeStore;
 import org.apache.jackrabbit.oak.store.remote.RemoteNodeStoreRepoTest;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
@@ -51,7 +52,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class PostgresSqlStorageTest{
+public class PostgresSqlStorageTest extends AbstractRemoteNodeStoreRepoTest {
 
 
     @ClassRule
@@ -69,7 +70,7 @@ public class PostgresSqlStorageTest{
     }
 
     @Before
-    public void setup() throws SQLException {
+    public void setup() throws SQLException, RepositoryException, ParseException, IOException {
 
         Properties props = new Properties();
         props.setProperty("user", postgreSQLContainer.getUsername());
@@ -81,6 +82,12 @@ public class PostgresSqlStorageTest{
         initDb();
 
         dbStorage = new DbStorage(connectionPool, TABLE);
+
+        fileBlobStore = new FileBlobStore(blobStoreDir.getRoot().getAbsolutePath());
+
+        nodeStore = new RemoteNodeStore(dbStorage, fileBlobStore);
+
+        super.setUp();
     }
 
     private void initDb() throws SQLException {

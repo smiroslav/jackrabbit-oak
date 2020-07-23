@@ -48,6 +48,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.store.remote.store.Node;
+import org.apache.jackrabbit.oak.store.remote.store.Storage;
 
 public class RemoteNodeStore implements NodeStore, Observable {
 
@@ -59,9 +60,9 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
     private RemoteCheckpoints checkpoints;
 
-    MemoryStorage storage;
+    Storage storage;
 
-    public RemoteNodeStore(MemoryStorage storage, BlobStore blobStore) {
+    public RemoteNodeStore(Storage storage, BlobStore blobStore) {
         this.storage = storage;
         this.blobStore = blobStore;
         this.changeDispatcher = new ChangeDispatcher(getRoot());

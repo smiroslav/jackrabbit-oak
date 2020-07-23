@@ -399,7 +399,7 @@ public interface NodeState {
      */
     //TODO - created it as default so that it does not need to be implemented in all node states; change this later
     default String getNodePath() {
-        return "this method should be implemented";
+        throw new RuntimeException("this method should have been implemented");
     }
 
     //TODO - created it as default so that it does not need to be implemented in all node states; change this later

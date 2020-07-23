@@ -97,6 +97,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
 
     private NodeState merge(RemoteNodeBuilder builder, CommitHook commitHook, CommitInfo commitInfo) throws CommitFailedException {
         if (builder.isRootBuilder()) {
+            storage.incrementRevisionNumber();
             try {
                 return merge(builder, builder.getBaseState(), builder.getNodeState(), commitHook, commitInfo);
             } catch (IOException e) {
@@ -123,7 +124,7 @@ public class RemoteNodeStore implements NodeStore, Observable {
         NodeState mergedState = new RemoteNodeState(baseState.getNodePath(), storage, blobStore, storage.getCurrentRevision());
         changeDispatcher.contentChanged(mergedState, commitInfo);
         builder.reset(mergedState);
-        storage.incrementRevisionNumber();
+
         return mergedState;
     }
 

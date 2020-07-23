@@ -18,12 +18,16 @@ public class MemoryStorage implements Storage{
 
     private TreeMap<String, List<Node>> tree = new TreeMap<>();
 
+    public ThreadLocal<Long> threadCurrentRevision = ThreadLocal.withInitial(() -> currentRevision.get());
+
     public long getCurrentRevision() {
-        return currentRevision.get();
+        return threadCurrentRevision.get();
     }
 
     public long incrementRevisionNumber() {
-        return currentRevision.incrementAndGet();
+        long revision =  currentRevision.incrementAndGet();
+        threadCurrentRevision.set(revision);
+        return revision;
     }
 
 //    public void addNode(String path, Map<String, PropertyState> properties) {

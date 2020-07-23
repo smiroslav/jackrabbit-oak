@@ -48,6 +48,8 @@ public class DbStorage implements Storage {
     private final String getChildNodesStmtString;
     private final AtomicLong currentRevision;
 
+    public ThreadLocal<Long> threadCurrentRevision;
+
     private Gson gson;
 
     public DbStorage(ConnectionPool connectionPool, String tableName) {
@@ -84,6 +86,7 @@ public class DbStorage implements Storage {
 
         try {
             currentRevision  = new AtomicLong(getCurrentRevisionFromTable() + 1);
+            threadCurrentRevision = ThreadLocal.withInitial(() -> currentRevision.get());
         } catch (SQLException e) {
             throw new StorageException(e);
         }
@@ -139,7 +142,7 @@ public class DbStorage implements Storage {
             if (resultSet.next()) {
                 return  resultSet.getLong(1);
             } else {
-                return -1;
+                return 0;
             }
         }
     }
@@ -335,11 +338,13 @@ public class DbStorage implements Storage {
 
     @Override
     public long incrementRevisionNumber() {
-        return currentRevision.incrementAndGet();
+        long revision =  currentRevision.incrementAndGet();
+        threadCurrentRevision.set(revision);
+        return revision;
     }
 
     @Override
     public long getCurrentRevision() {
-        return currentRevision.get();
+        return threadCurrentRevision.get();
     }
 }

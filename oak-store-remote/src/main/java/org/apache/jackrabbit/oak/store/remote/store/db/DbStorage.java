@@ -9,11 +9,13 @@ import org.apache.jackrabbit.oak.plugins.memory.BinaryPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.BooleanPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.DecimalPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.DoublePropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.GenericPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.LongPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.MultiBinaryPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.MultiBooleanPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.MultiDecimalPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.MultiDoublePropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.MultiGenericPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.MultiLongPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.MultiStringPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
@@ -108,6 +110,8 @@ public class DbStorage implements Storage {
         gsonBuilder.registerTypeAdapter(DoublePropertyState.class, propertyStateSerializer);
         gsonBuilder.registerTypeAdapter(BooleanPropertyState.class, propertyStateSerializer);
         gsonBuilder.registerTypeAdapter(DecimalPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(GenericPropertyState.class, propertyStateSerializer);
+
         //multi
         gsonBuilder.registerTypeAdapter(MultiStringPropertyState.class, propertyStateSerializer);
         gsonBuilder.registerTypeAdapter(MultiBinaryPropertyState.class, propertyStateSerializer);
@@ -115,6 +119,8 @@ public class DbStorage implements Storage {
         gsonBuilder.registerTypeAdapter(MultiDoublePropertyState.class, propertyStateSerializer);
         gsonBuilder.registerTypeAdapter(MultiBooleanPropertyState.class, propertyStateSerializer);
         gsonBuilder.registerTypeAdapter(MultiDecimalPropertyState.class, propertyStateSerializer);
+        gsonBuilder.registerTypeAdapter(MultiGenericPropertyState.class, propertyStateSerializer);
+
 
         //single
         gsonBuilder.registerTypeAdapter(PropertyState.class, propertyStateDeserializer);
@@ -124,6 +130,7 @@ public class DbStorage implements Storage {
         gsonBuilder.registerTypeAdapter(DoublePropertyState.class, propertyStateDeserializer);
         gsonBuilder.registerTypeAdapter(BooleanPropertyState.class, propertyStateDeserializer);
         gsonBuilder.registerTypeAdapter(DecimalPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(GenericPropertyState.class, propertyStateDeserializer);
         //multi
         gsonBuilder.registerTypeAdapter(MultiStringPropertyState.class, propertyStateDeserializer);
         gsonBuilder.registerTypeAdapter(MultiBinaryPropertyState.class, propertyStateDeserializer);
@@ -131,6 +138,8 @@ public class DbStorage implements Storage {
         gsonBuilder.registerTypeAdapter(MultiDoublePropertyState.class, propertyStateDeserializer);
         gsonBuilder.registerTypeAdapter(MultiBooleanPropertyState.class, propertyStateDeserializer);
         gsonBuilder.registerTypeAdapter(MultiDecimalPropertyState.class, propertyStateDeserializer);
+        gsonBuilder.registerTypeAdapter(MultiGenericPropertyState.class, propertyStateDeserializer);
+
 
         this.gson = gsonBuilder.create();
     }
@@ -181,7 +190,7 @@ public class DbStorage implements Storage {
 
     Map<String, PropertyState> deserializeProperties(String properties) {
 
-        if (properties == null || properties.equals("") || properties.equals("[]")) {
+        if (properties == null || properties.equals("") || properties.equals("[]") || properties.equals("null")) {
             return Collections.emptyMap();
         }
         Type collectionType = new TypeToken<ArrayList<? extends PropertyState>>(){}.getType();
@@ -224,7 +233,8 @@ public class DbStorage implements Storage {
 
     @Override
     public void deleteNode(String path) {
-        deleteNode(path, getCurrentRevision());
+        //deleteNode(path, getCurrentRevision());
+        deleteNodeAndSubtree(path, getCurrentRevision());
     }
 
     @Override
@@ -310,9 +320,39 @@ public class DbStorage implements Storage {
         }
     }
 
+
+    private void deleteNodeAndSubtree(String path, long revision) {
+        try (Connection connection = connectionPool.getConnection()) {
+
+            PreparedStatement preparedStatement = connection.prepareStatement(getSubtreeStmtString);
+            preparedStatement.setString(1, path);
+            preparedStatement.setString(2, path + "/%");
+            preparedStatement.setString(3, path);
+            preparedStatement.setString(4, path + "/%");
+            preparedStatement.setLong(5, revision);
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+
+            while (resultSet.next()) {
+                String nodePath = resultSet.getString(1);
+                Long nodeRevision = resultSet.getLong(2);
+                PreparedStatement updateStatement = connection.prepareStatement(setDeletedRevisionStmtString);
+                updateStatement.setLong(1, revision);
+                updateStatement.setString(2, nodePath);
+                updateStatement.setLong(3, nodeRevision);
+
+                updateStatement.execute();
+            }
+
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
     @Override
     public void moveChildNodes(String fromPath, String toPath) {
-
+//TODO - don't load whole subtree in the memory
         TreeMap<String, Node> subtree = getNodeAndSubtree(fromPath, getCurrentRevision(), true);
 
         try (Connection connection = connectionPool.getConnection()) {

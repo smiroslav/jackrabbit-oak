@@ -78,6 +78,18 @@ public class AbstractRemoteNodeStoreRepoTest {
     }
 
     @Test
+    public void test2() throws RepositoryException, IOException, ParseException {
+
+        Node node = session.getRootNode().addNode("a");
+
+        node.setProperty("prop1", "val1");
+        node.setProperty("prop2", "val2");
+
+        session.save();
+
+    }
+
+    @Test
     public void testMove() throws RepositoryException {
 
         Node node = session.getRootNode().addNode("a").addNode("b").addNode("c").addNode("d");

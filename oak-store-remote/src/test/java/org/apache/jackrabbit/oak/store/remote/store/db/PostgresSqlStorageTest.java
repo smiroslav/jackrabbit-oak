@@ -52,7 +52,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class PostgresSqlStorageTest extends AbstractRemoteNodeStoreRepoTest {
+public class PostgresSqlStorageTest {
 
 
     @ClassRule
@@ -83,11 +83,6 @@ public class PostgresSqlStorageTest extends AbstractRemoteNodeStoreRepoTest {
 
         dbStorage = new DbStorage(connectionPool, TABLE);
 
-        fileBlobStore = new FileBlobStore(blobStoreDir.getRoot().getAbsolutePath());
-
-        nodeStore = new RemoteNodeStore(dbStorage, fileBlobStore);
-
-        super.setUp();
     }
 
     private void initDb() throws SQLException {

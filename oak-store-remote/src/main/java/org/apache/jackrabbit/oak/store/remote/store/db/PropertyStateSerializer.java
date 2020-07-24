@@ -20,7 +20,8 @@ public class PropertyStateSerializer implements JsonSerializer<PropertyState> {
         if (src.isArray()) {
             JsonArray jsonArray = new JsonArray();
             for (int i = 0; i < src.count(); i++) {
-                jsonArray.add(src.getValue(org.apache.jackrabbit.oak.api.Type.STRING, i));
+                //jsonArray.add(src.getValue(org.apache.jackrabbit.oak.api.Type.STRING, i));
+                jsonArray.add(src.getValue(org.apache.jackrabbit.oak.api.Type.fromTag(src.getType().tag(), false), i).toString());
             }
             jsonObject.add("value", jsonArray);
         } else {

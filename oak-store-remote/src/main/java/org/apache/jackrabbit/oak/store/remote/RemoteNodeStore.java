@@ -23,17 +23,21 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
+import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.store.remote.store.MemoryStorage;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
@@ -80,12 +84,15 @@ public class RemoteNodeStore implements NodeStore, Observable {
         Node root = storage.getRootNode();
 
         if (root == null) {
-            storage.addNode("/", Collections.emptyList());
+            storage.addNode("/", Arrays.asList(new PropertyState[]{PropertyStates.createProperty("jcr:primaryType", "rep:root")}));
         }
 
         root = storage.getRootNode();
 
-        return new RemoteNodeState("/", storage, blobStore, root.getRevision());
+
+        RemoteNodeState rootNode =  new RemoteNodeState("/", storage, blobStore, root.getRevision());
+
+        return rootNode;
     }
 
     @Override
@@ -250,7 +257,9 @@ public class RemoteNodeStore implements NodeStore, Observable {
             }
 
         });
-        storage.addNode(after.getNodePath(), after.getProperties());
+        //storage.addNode(after.getNodePath(), after.getProperties());
+
+        storage.addNode(after.getNodePath(), StreamSupport.stream(after.getProperties().spliterator(), false).collect(Collectors.toList()));
 
         if(before.exists() && !before.getNodePath().equals(after.getNodePath())) {
             storage.moveChildNodes(before.getNodePath(), after.getNodePath());

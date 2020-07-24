@@ -31,7 +31,7 @@ import org.jetbrains.annotations.Nullable;
  * Singleton instances of empty and non-existent node states, i.e. ones
  * with neither properties nor child nodes.
  */
-public final class EmptyNodeState implements NodeState {
+public class EmptyNodeState implements NodeState {
 
     public static final NodeState EMPTY_NODE = new EmptyNodeState(true);
 
@@ -39,7 +39,7 @@ public final class EmptyNodeState implements NodeState {
 
     private final boolean exists;
 
-    private EmptyNodeState(boolean exists) {
+    public EmptyNodeState(boolean exists) {
         this.exists = exists;
     }
 

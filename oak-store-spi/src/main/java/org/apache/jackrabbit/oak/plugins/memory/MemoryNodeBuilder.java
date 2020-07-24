@@ -333,7 +333,20 @@ public class MemoryNodeBuilder implements NodeBuilder {
     @NotNull
     @Override
     public NodeBuilder setChildNode(@NotNull String name) {
-        return setChildNode(name, EMPTY_NODE);
+        return setChildNode(name, new EmptyNodeState(true){
+
+            private String nodePath;
+
+            @Override
+            public String getNodePath() {
+                return nodePath;
+            }
+
+            @Override
+            public void setNodePath(String nodePath) {
+                this.nodePath = nodePath;
+            }
+        });
     }
 
     @NotNull

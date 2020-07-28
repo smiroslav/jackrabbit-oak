@@ -25,9 +25,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class AbstractRemoteNodeStoreRepoTest {
     static final String TEST_NODETYPES = "org/apache/jackrabbit/oak/store/remote/test_nodetypes.cnd";
@@ -158,7 +160,6 @@ public class AbstractRemoteNodeStoreRepoTest {
         b.setProperty("bprop1", "bval1");
 
         //check before session save
-        b = session.getNode("/a/b");
         assertEquals("bval1", b.getProperty("bprop1").getString());
 
         session.save();
@@ -206,7 +207,7 @@ public class AbstractRemoteNodeStoreRepoTest {
         f.setProperty("fprop1", "fval1");
 
         //check before session save
-        b = session.getNode("/a/b");
+
         f = b.getNode("e/f");
         assertEquals("bval1", b.getProperty("bprop1").getString());
         assertEquals("fval1", f.getProperty("fprop1").getString());
@@ -246,12 +247,13 @@ public class AbstractRemoteNodeStoreRepoTest {
     }
 
     @Test
-    public void testBlobStore() throws RepositoryException {
+    public void testBlobStore() throws RepositoryException, IOException {
 
         Node a = session.getRootNode().addNode("a", UNSTRUCTURED);
 
         ValueFactory factory = session.getValueFactory();
-        InputStream is = new ByteArrayInputStream("binary value to become".getBytes());
+        byte[] bytesToStore = "binary value to become".getBytes();
+        InputStream is = new ByteArrayInputStream(bytesToStore);
 
         Binary binary = factory.createBinary(is);
         Value value = factory.createValue(binary);
@@ -259,7 +261,9 @@ public class AbstractRemoteNodeStoreRepoTest {
 
         session.save();
 
-        assertEquals(binary, a.getProperty("jcr:data").getBinary());
+        byte[] readBytes = new byte[bytesToStore.length];
+        a.getProperty("jcr:data").getBinary().read(readBytes, 0);
+        assertTrue(Arrays.equals(bytesToStore, readBytes));
 
     }
 }

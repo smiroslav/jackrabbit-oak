@@ -16,10 +16,15 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+import javax.jcr.Binary;
 import javax.jcr.Node;
 import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
+import javax.jcr.ValueFactory;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -28,6 +33,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -109,25 +115,7 @@ public class PostgresSqlStorageRepoTest extends AbstractRemoteNodeStoreRepoTest 
                 "   TABLESPACE pg_default;");
     }
 
-    @Test
-//    public void testDelete() throws RepositoryException {
-//
-//        session.getRootNode().addNode("a").addNode("b").addNode("c").addNode("d");
-//
-//        session.save();
-//
-//        Assert.assertTrue(session.nodeExists("/a/b/c"));
-//        Assert.assertTrue(session.nodeExists("/a/b/c/d"));
-//
-//        Node node = session.getNode("/a/b/c");
-//        node.remove();
-//
-//        session.save();
-//
-//        Assert.assertFalse(session.nodeExists("/a/b/c"));
-//        Assert.assertFalse(session.nodeExists("/a/b/c/d"));
-//
-//    }
+
 
     @After
     public void tearDown() throws SQLException {

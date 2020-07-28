@@ -48,6 +48,7 @@ public class DbStorage implements Storage {
     private final String setDeletedRevisionStmtString;
     private final String getSubtreeStmtString;
     private final String getChildNodesStmtString;
+    private final String getChildNodesDeletedInRevisionStmtString;
     private final AtomicLong currentRevision;
 
     public ThreadLocal<Long> threadCurrentRevision;
@@ -84,6 +85,17 @@ public class DbStorage implements Storage {
                 "  GROUP BY path\n" +
                 ") as b ON a.path = b.path AND a.revision = b.revision\n" +
                 "WHERE (a.path = ? OR parent_path = ?) AND (a.revision_deleted IS NULL OR a.revision_deleted = 0) AND a.revision <= ? " +
+                "ORDER BY a.path ";
+
+        getChildNodesDeletedInRevisionStmtString = "" +
+                "SELECT a.path, a.revision, a.properties FROM "+tableName+" a\n" +
+                "INNER JOIN (\n" +
+                "  SELECT path, MAX(revision) as revision\n" +
+                "  FROM "+tableName+"\n" +
+                "  WHERE path = ? OR parent_path = ?\n" +
+                "  GROUP BY path\n" +
+                ") as b ON a.path = b.path AND a.revision = b.revision\n" +
+                "WHERE (a.path = ? OR parent_path = ?) AND a.revision_deleted = ? AND a.revision <= ? " +
                 "ORDER BY a.path ";
 
         try {
@@ -353,7 +365,38 @@ public class DbStorage implements Storage {
     @Override
     public void moveChildNodes(String fromPath, String toPath) {
 //TODO - don't load whole subtree in the memory
-        TreeMap<String, Node> subtree = getNodeAndSubtree(fromPath, getCurrentRevision(), true);
+        try (Connection connection = connectionPool.getConnection()) {
+            connection.setAutoCommit(false);
+            PreparedStatement preparedStatement = connection.prepareStatement(getChildNodesDeletedInRevisionStmtString);
+
+            preparedStatement.setString(1, fromPath);
+            preparedStatement.setString(2, fromPath);
+            preparedStatement.setString(3, fromPath);
+            preparedStatement.setString(4, fromPath);
+            preparedStatement.setLong(5, getCurrentRevision());
+            preparedStatement.setLong(6, getCurrentRevision());
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            PreparedStatement insertStmt = connection.prepareStatement(insertStmtString);
+            while (resultSet.next()) {
+                String nodePath = resultSet.getString(1);
+                if (nodePath.equals(fromPath)) {
+                    continue;
+                }
+
+                String newPath = nodePath.replace(fromPath, toPath);
+                Map<String, PropertyState> nodeProperties = deserializeProperties(resultSet.getString(3));
+
+                insertNewNode(newPath, nodeProperties.values(), insertStmt);
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+        //----------
+        /*TreeMap<String, Node> subtree = getNodeAndSubtree(fromPath, getCurrentRevision(), true);
 
         try (Connection connection = connectionPool.getConnection()) {
             PreparedStatement insertStmt = connection.prepareStatement(insertStmtString);
@@ -373,7 +416,7 @@ public class DbStorage implements Storage {
             connection.commit();
         } catch (SQLException e) {
             throw new StorageException(e);
-        }
+        }*/
     }
 
     @Override

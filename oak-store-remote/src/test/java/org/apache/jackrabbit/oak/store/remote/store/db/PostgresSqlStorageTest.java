@@ -429,19 +429,22 @@ public class PostgresSqlStorageTest {
 
         preparedStatement.setString(1, "/a/b");
         preparedStatement.setLong(2, 1);
-        preparedStatement.setObject(3, null, Types.BIGINT);
+//        preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setObject(3, 1);
         preparedStatement.setString(4, "/a");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/d");
         preparedStatement.setLong(2, 1);
-        preparedStatement.setObject(3, null, Types.BIGINT);
+        //preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setObject(3, 1);
         preparedStatement.setString(4, "/a/b");
         preparedStatement.execute();
 
         preparedStatement.setString(1, "/a/b/c");
         preparedStatement.setLong(2, 1);
-        preparedStatement.setObject(3, null, Types.BIGINT);
+        //preparedStatement.setObject(3, null, Types.BIGINT);
+        preparedStatement.setObject(3, 1);
         preparedStatement.setString(4, "/a/b");
         preparedStatement.execute();
 

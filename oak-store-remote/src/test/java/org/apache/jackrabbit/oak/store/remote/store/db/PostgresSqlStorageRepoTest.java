@@ -117,6 +117,52 @@ public class PostgresSqlStorageRepoTest extends AbstractRemoteNodeStoreRepoTest 
 
 
 
+    @Test
+    public void testMove() throws RepositoryException {
+
+        Node root = session.getRootNode();
+
+        Node b = root.addNode("a").addNode("b");
+        Node c = b.addNode("c");
+        c.addNode("d");
+        c.addNode("e");
+        c.addNode("f");
+
+        Node g = b.addNode("g");
+        g.addNode("h");
+        g.addNode("k");
+
+        Node j = root.addNode("j");
+
+        session.save();
+
+        session.move("/a/b/c", "/j/c");
+
+        session.save();
+
+        g = session.getNode("/a/b/g");
+        g.remove();
+
+        session.save();
+
+        c = session.getNode("/j/c");
+        Node d = c.getNode("d");
+        Node e = c.getNode("e");
+        Node f = c.getNode("f");
+
+        Assert.assertNotNull(c);
+        Assert.assertNotNull(d);
+        Assert.assertNotNull(e);
+        Assert.assertNotNull(f);
+
+        Assert.assertFalse(session.nodeExists("/a/b/g"));
+        Assert.assertFalse(session.nodeExists("/a/b/g/h"));
+        Assert.assertFalse(session.nodeExists("/a/b/g/k"));
+
+    }
+
+
+
     @After
     public void tearDown() throws SQLException {
         Statement statement = dbConnection.createStatement();

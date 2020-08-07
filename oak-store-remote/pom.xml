@@ -177,6 +177,19 @@
             <version>2.8.0</version>
         </dependency>
 
+        <!-- Tinkerpop -->
+        <dependency>
+            <groupId>org.apache.tinkerpop</groupId>
+            <artifactId>gremlin-driver</artifactId>
+            <version>3.4.7</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tinkerpop</groupId>
+            <artifactId>gremlin-server</artifactId>
+            <version>3.4.7</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Test dependencies -->
 <!--        <dependency>
             <groupId>ru.yandex.qatools.embed</groupId>

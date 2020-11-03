@@ -28,7 +28,7 @@ import org.osgi.service.component.annotations.ConfigurationPolicy;
 import org.osgi.service.component.annotations.Reference;
 
 @Component(configurationPolicy = ConfigurationPolicy.REQUIRE)
-public class MemoryKVNodeStoreService {
+public class MemoryNodeStoreService {
 
     @Reference
     private BlobStore blobStore;

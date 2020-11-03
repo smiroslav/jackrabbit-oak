@@ -433,7 +433,7 @@ public class SessionDelegate {
 
         String primaryType = tree.getProperty("jcr:primaryType").getValue(Type.STRING);
 
-        if (primaryType.equals("test:aggregate")) {
+        if (primaryType.equals("test:aggregate") || primaryType.equals("cq:PageContent") || primaryType.equals("dam:Asset")) {
             //TODO
             FullyLoadedTree fullyLoadedTree = new FullyLoadedTree(tree);
             return new NodeDelegateFullyLoaded(this, fullyLoadedTree);

@@ -101,7 +101,7 @@ public abstract class GetParentNodeTest extends AbstractTest {
     @Override
     protected void afterSuite() throws Exception {
         Session session = loginWriter();
-        session.getNode("/"+ROOT_NODE_PATH).remove();
+        session.getRootNode().getNode(ROOT_NODE_PATH).remove();
         session.save();
         session.logout();
 

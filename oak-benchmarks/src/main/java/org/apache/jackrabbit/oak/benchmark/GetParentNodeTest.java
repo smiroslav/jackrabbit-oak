@@ -39,7 +39,6 @@ public abstract class GetParentNodeTest extends AbstractTest {
     private static final String ROOT_NODE_PATH = GetParentNodeTest.class.getSimpleName() + TEST_ID;
     protected String parentNodePath;
     private String childNodePath;
-    private Session readSession;
 
     public static Benchmark withNodeAPI() {
         return new GetParentNodeTest("GetParentNodeWithNodeAPI") {
@@ -86,16 +85,16 @@ public abstract class GetParentNodeTest extends AbstractTest {
         session.save();
 
         session.logout();
-
-        readSession = loginAnonymous();
     }
 
     @Override
     protected void runTest() throws Exception {
-        Node child = readSession.getNode(childNodePath);
+        Session session = loginAnonymous();
+        Node child = session.getNode(childNodePath);
         for (int i = 0; i < 10000; i++) {
             getParentNode(child);
         }
+        session.logout();
     }
 
     @Override
@@ -104,7 +103,5 @@ public abstract class GetParentNodeTest extends AbstractTest {
         session.getRootNode().getNode(ROOT_NODE_PATH).remove();
         session.save();
         session.logout();
-
-        readSession.logout();
     }
 }

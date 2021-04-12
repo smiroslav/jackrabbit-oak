@@ -128,6 +128,12 @@ public class SegmentNodeStoreFactory {
         int segmentCache_size() default DEFAULT_SEGMENT_CACHE_MB;
 
         @AttributeDefinition(
+                name = "Eager segment caching",
+                description = "Boolean value of true indicates that when segment is being persisted it will be also loaded in the segment cache."
+        )
+        boolean eagerSegmentCaching() default false;
+
+        @AttributeDefinition(
             name = "String cache size (MB)",
             description = "Cache size for storing most recently used strings in megabytes. " +
                 "Default value is '" + DEFAULT_STRING_CACHE_MB + "'."
@@ -503,6 +509,11 @@ public class SegmentNodeStoreFactory {
             @Override
             public int getSegmentCacheSize() {
                 return getCacheSize("segmentCache.size", configuration.segmentCache_size());
+            }
+
+            @Override
+            public boolean isEagerSegmentCaching() {
+                return configuration.eagerSegmentCaching();
             }
 
             @Override

@@ -125,6 +125,8 @@ class SegmentNodeStoreRegistrar {
 
         int getSegmentCacheSize();
 
+        boolean isEagerSegmentCaching();
+
         int getStringCacheSize();
 
         int getTemplateCacheSize();
@@ -261,6 +263,10 @@ class SegmentNodeStoreRegistrar {
                 cfg.getLogger().info("Initializing SegmentNodeStore with custom persistence [{}]", customPersistence);
                 builder.withCustomPersistence(customPersistence);
             }
+        }
+        
+        if (cfg.isEagerSegmentCaching()) {
+            builder.withEagerSegmentCaching(true);
         }
 
         if (cfg.isStandbyInstance()) {

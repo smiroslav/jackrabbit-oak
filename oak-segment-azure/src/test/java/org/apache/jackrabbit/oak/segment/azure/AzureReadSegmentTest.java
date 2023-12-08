@@ -18,17 +18,14 @@
  */
 package org.apache.jackrabbit.oak.segment.azure;
 
+import com.azure.storage.blob.BlobContainerClient;
 import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.CloudBlobContainer;
-import com.microsoft.azure.storage.blob.CloudBlobDirectory;
-
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzuriteDockerRule;
 import org.apache.jackrabbit.oak.commons.Buffer;
 import org.apache.jackrabbit.oak.segment.SegmentId;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.file.FileStoreBuilder;
-import org.apache.jackrabbit.oak.segment.file.InvalidFileStoreVersionException;
 import org.apache.jackrabbit.oak.segment.spi.RepositoryNotReachableException;
 import org.apache.jackrabbit.oak.segment.spi.monitor.FileStoreMonitor;
 import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
@@ -50,16 +47,16 @@ public class AzureReadSegmentTest {
     @ClassRule
     public static AzuriteDockerRule azurite = new AzuriteDockerRule();
 
-    private CloudBlobContainer container;
+    private BlobContainerClient blobContainerClient;
 
     @Before
     public void setup() throws StorageException, InvalidKeyException, URISyntaxException {
-        container = azurite.getContainer("oak-test");
+        blobContainerClient = azurite.getBlobContainerClient("oak-test");
     }
 
     @Test(expected = SegmentNotFoundException.class)
-    public void testReadNonExistentSegmentRepositoryReachable() throws URISyntaxException, IOException, InvalidFileStoreVersionException, StorageException {
-        AzurePersistence p = new AzurePersistence(container.getDirectoryReference("oak"));
+    public void testReadNonExistentSegmentRepositoryReachable() throws Exception {
+        AzurePersistence p = new AzurePersistence(blobContainerClient, "oak");
         FileStore fs = FileStoreBuilder.fileStoreBuilder(new File("target")).withCustomPersistence(p).build();
         SegmentId id = new SegmentId(fs, 0, 0);
 
@@ -71,8 +68,8 @@ public class AzureReadSegmentTest {
     }
 
     @Test(expected = RepositoryNotReachableException.class)
-    public void testReadExistentSegmentRepositoryNotReachable() throws URISyntaxException, IOException, InvalidFileStoreVersionException, StorageException {
-        AzurePersistence p = new ReadFailingAzurePersistence(container.getDirectoryReference("oak"));
+    public void testReadExistentSegmentRepositoryNotReachable() throws Exception {
+        AzurePersistence p = new ReadFailingAzurePersistence(blobContainerClient);
         FileStore fs = FileStoreBuilder.fileStoreBuilder(new File("target")).withCustomPersistence(p).build();
 
         SegmentId id = new SegmentId(fs, 0, 0);
@@ -87,18 +84,17 @@ public class AzureReadSegmentTest {
     }
 
     static class ReadFailingAzurePersistence extends AzurePersistence {
-        public ReadFailingAzurePersistence(CloudBlobDirectory segmentStoreDirectory) {
-            super(segmentStoreDirectory);
+        public ReadFailingAzurePersistence(BlobContainerClient blobContainerClient) {
+            super(blobContainerClient, "oak");
         }
 
         @Override
         public SegmentArchiveManager createArchiveManager(boolean mmap, boolean offHeapAccess, IOMonitor ioMonitor,
                 FileStoreMonitor fileStoreMonitor, RemoteStoreMonitor remoteStoreMonitor) {
-            return new AzureArchiveManager(segmentstoreDirectory, ioMonitor, fileStoreMonitor, writeAccessController) {
+            return new AzureArchiveManager(blobContainerClient, rootPrefix, ioMonitor, fileStoreMonitor, writeAccessController) {
                 @Override
                 public SegmentArchiveReader open(String archiveName) throws IOException {
-                    CloudBlobDirectory archiveDirectory = getDirectory(archiveName);
-                    return new AzureSegmentArchiveReader(archiveDirectory, ioMonitor) {
+                    return new AzureSegmentArchiveReader(blobContainerClient, rootPrefix, archiveName, ioMonitor) {
                         @Override
                         public Buffer readSegment(long msb, long lsb) throws IOException {
                             throw new RepositoryNotReachableException(
@@ -108,9 +104,8 @@ public class AzureReadSegmentTest {
                 }
 
                 @Override
-                public SegmentArchiveWriter create(String archiveName) throws IOException {
-                    CloudBlobDirectory archiveDirectory = getDirectory(archiveName);
-                    return new AzureSegmentArchiveWriter(archiveDirectory, ioMonitor, fileStoreMonitor, writeAccessController) {
+                public SegmentArchiveWriter create(String archiveName) {
+                    return new AzureSegmentArchiveWriter(blobContainerClient, rootPrefix, archiveName, ioMonitor, fileStoreMonitor, writeAccessController) {
                         @Override
                         public Buffer readSegment(long msb, long lsb) throws IOException {
                             throw new RepositoryNotReachableException(

@@ -18,12 +18,11 @@
  */
 package org.apache.jackrabbit.oak.segment.azure;
 
+import com.azure.storage.blob.BlobContainerClient;
 import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.CloudBlobContainer;
-
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzuriteDockerRule;
-import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentNodeStorePersistence;
 import org.apache.jackrabbit.oak.segment.file.GcJournalTest;
+import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentNodeStorePersistence;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Ignore;
@@ -37,16 +36,16 @@ public class AzureGCJournalTest extends GcJournalTest {
     @ClassRule
     public static AzuriteDockerRule azurite = new AzuriteDockerRule();
 
-    private CloudBlobContainer container;
+    private BlobContainerClient blobContainerClient;
 
     @Before
     public void setup() throws StorageException, InvalidKeyException, URISyntaxException {
-        container = azurite.getContainer("oak-test");
+        blobContainerClient = azurite.getBlobContainerClient("oak-test");
     }
 
     @Override
     protected SegmentNodeStorePersistence getPersistence() throws Exception {
-        return new AzurePersistence(container.getDirectoryReference("oak"));
+        return new AzurePersistence(blobContainerClient, "oak");
     }
 
     @Test

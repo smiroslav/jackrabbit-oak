@@ -16,13 +16,13 @@
  */
 package org.apache.jackrabbit.oak.segment.azure;
 
-import org.apache.jackrabbit.guava.common.collect.ImmutableList;
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.BlobType;
+import com.azure.storage.blob.models.ListBlobsOptions;
+import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.CloudAppendBlob;
-import com.microsoft.azure.storage.blob.CloudBlob;
-import com.microsoft.azure.storage.blob.CloudBlobDirectory;
-import com.microsoft.azure.storage.blob.ListBlobItem;
-import org.apache.jackrabbit.oak.segment.azure.util.CaseInsensitiveKeysMapAccess;
+import org.apache.jackrabbit.guava.common.collect.ImmutableList;
 import org.apache.jackrabbit.oak.segment.remote.WriteAccessController;
 import org.apache.jackrabbit.oak.segment.spi.persistence.JournalFile;
 import org.apache.jackrabbit.oak.segment.spi.persistence.JournalFileReader;
@@ -30,13 +30,9 @@ import org.apache.jackrabbit.oak.segment.spi.persistence.JournalFileWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,28 +44,28 @@ public class AzureJournalFile implements JournalFile {
 
     private static final int JOURNAL_LINE_LIMIT = Integer.getInteger("org.apache.jackrabbit.oak.segment.azure.journal.lines", 40_000);
 
-    private final CloudBlobDirectory directory;
-
     private final String journalNamePrefix;
 
     private final int lineLimit;
 
     private final WriteAccessController writeAccessController;
 
-    AzureJournalFile(CloudBlobDirectory directory, String journalNamePrefix, WriteAccessController writeAccessController, int lineLimit) {
-        this.directory = directory;
+    private BlobContainerClient blobContainerClient;
+
+    AzureJournalFile(BlobContainerClient blobContainerClient, String journalNamePrefix, WriteAccessController writeAccessController, int lineLimit) {
+        this.blobContainerClient = blobContainerClient;
         this.journalNamePrefix = journalNamePrefix;
         this.lineLimit = lineLimit;
         this.writeAccessController = writeAccessController;
     }
 
-    public AzureJournalFile(CloudBlobDirectory directory, String journalNamePrefix, WriteAccessController writeAccessController) {
-        this(directory, journalNamePrefix, writeAccessController, JOURNAL_LINE_LIMIT);
+    public AzureJournalFile(BlobContainerClient blobContainerClient, String journalNamePrefix, WriteAccessController writeAccessController) {
+        this(blobContainerClient, journalNamePrefix, writeAccessController, JOURNAL_LINE_LIMIT);
     }
 
     @Override
     public JournalFileReader openJournalReader() throws IOException {
-        return new CombinedReader(getJournalBlobs());
+        return new CombinedReader(getJournalAppendBlobs());
     }
 
     @Override
@@ -85,7 +81,7 @@ public class AzureJournalFile implements JournalFile {
     @Override
     public boolean exists() {
         try {
-            return !getJournalBlobs().isEmpty();
+            return !getJournalAppendBlobs().isEmpty();
         } catch (IOException e) {
             log.error("Can't check if the file exists", e);
             return false;
@@ -96,26 +92,24 @@ public class AzureJournalFile implements JournalFile {
         return String.format("%s.%03d", journalNamePrefix, index);
     }
 
-    private List<CloudAppendBlob> getJournalBlobs() throws IOException {
-        try {
-            List<CloudAppendBlob> result = new ArrayList<>();
-            for (ListBlobItem b : directory.listBlobs(journalNamePrefix)) {
-                if (b instanceof CloudAppendBlob) {
-                    result.add((CloudAppendBlob) b);
-                } else {
-                    log.warn("Invalid blob type: {} {}", b.getUri(), b.getClass());
-                }
-            }
-            result.sort(Comparator.<CloudAppendBlob, String>comparing(AzureUtilities::getName).reversed());
+    private List<AppendBlobClient> getJournalAppendBlobs() throws IOException {
+
+            List<AppendBlobClient> result = new ArrayList<>();
+            ListBlobsOptions options = new ListBlobsOptions();
+            options.setPrefix(journalNamePrefix);
+            blobContainerClient.listBlobs(options, null)
+                    .stream()
+                    .filter(blobItem -> blobItem.getProperties().getBlobType().equals(BlobType.APPEND_BLOB))
+                    .forEach(blobItem -> result.add(blobContainerClient.getBlobClient(blobItem.getName()).getAppendBlobClient()));
+
+
+            result.sort(Comparator.<AppendBlobClient, String>comparing(appendBlobClient -> AzureUtilities.getName(appendBlobClient.getBlobName())).reversed());
             return result;
-        } catch (URISyntaxException | StorageException e) {
-            throw new IOException(e);
-        }
     }
 
     private static class AzureJournalReader implements JournalFileReader {
 
-        private final CloudBlob blob;
+        private AppendBlobClient appendBlobClient;
 
         private ReverseFileReader reader;
 
@@ -123,8 +117,8 @@ public class AzureJournalFile implements JournalFile {
 
         private boolean firstLineReturned;
 
-        private AzureJournalReader(CloudBlob blob) {
-            this.blob = blob;
+        private AzureJournalReader(AppendBlobClient appendBlobClient) {
+            this.appendBlobClient = appendBlobClient;
         }
 
         @Override
@@ -132,15 +126,14 @@ public class AzureJournalFile implements JournalFile {
             if (reader == null) {
                 try {
                     if (!metadataFetched) {
-                        blob.downloadAttributes();
+                        Map<String, String> metadata = appendBlobClient.getProperties().getMetadata();
                         metadataFetched = true;
-                        Map<String, String> metadata = CaseInsensitiveKeysMapAccess.convert(blob.getMetadata());
                         if (metadata.containsKey("lastEntry")) {
                             firstLineReturned = true;
                             return metadata.get("lastEntry");
                         }
                     }
-                    reader = new ReverseFileReader(blob);
+                    reader = new ReverseFileReader(appendBlobClient);
                     if (firstLineReturned) {
                         while("".equals(reader.readLine())); // the first line was already returned, let's fast-forward it
                     }
@@ -157,30 +150,23 @@ public class AzureJournalFile implements JournalFile {
     }
 
     private class AzureJournalWriter implements JournalFileWriter {
-
-        private CloudAppendBlob currentBlob;
+        private AppendBlobClient appendBlobClient;
 
         private int lineCount;
 
         public AzureJournalWriter() throws IOException {
-            List<CloudAppendBlob> blobs = getJournalBlobs();
-            if (blobs.isEmpty()) {
+            List<AppendBlobClient> appendBlobClients = getJournalAppendBlobs();
+            if (appendBlobClients.isEmpty()) {
                 try {
-                    currentBlob = directory.getAppendBlobReference(getJournalFileName(1));
-                    currentBlob.createOrReplace();
-                    currentBlob.downloadAttributes();
-                } catch (URISyntaxException | StorageException e) {
+                    appendBlobClient = blobContainerClient.getBlobClient(getJournalFileName(1)).getAppendBlobClient();
+                    appendBlobClient.createIfNotExists();
+                } catch (BlobStorageException e) {
                     throw new IOException(e);
                 }
             } else {
-                currentBlob = blobs.get(0);
+                appendBlobClient = appendBlobClients.get(0);
             }
-            try {
-                currentBlob.downloadAttributes();
-            } catch (StorageException e) {
-                throw new IOException(e);
-            }
-            String lc = currentBlob.getMetadata().get("lineCount");
+            String lc = appendBlobClient.getProperties().getMetadata().get("lineCount");
             lineCount = lc == null ? 0 : Integer.parseInt(lc);
         }
 
@@ -189,12 +175,12 @@ public class AzureJournalFile implements JournalFile {
             try {
                 writeAccessController.checkWritingAllowed();
 
-                for (CloudAppendBlob cloudAppendBlob : getJournalBlobs()) {
-                    cloudAppendBlob.delete();
+                for (AppendBlobClient appendBlobClient : getJournalAppendBlobs()) {
+                    appendBlobClient.delete();
                 }
 
                 createNextFile(0);
-            } catch (StorageException e) {
+            } catch (BlobStorageException e) {
                 throw new IOException(e);
             }
         }
@@ -229,12 +215,13 @@ public class AzureJournalFile implements JournalFile {
                     text.append(line).append("\n");
                 }
                 try {
-                    currentBlob.appendText(text.toString());
-                    currentBlob.getMetadata().put("lastEntry", entries.get(entries.size() - 1));
+                    appendBlobClient.appendBlock(new ByteArrayInputStream(text.toString().getBytes()), text.length());
+                    Map<String, String> metadata = appendBlobClient.getProperties().getMetadata();
+                    metadata.put("lastEntry", entries.get(entries.size() - 1));
                     lineCount += entries.size();
-                    currentBlob.getMetadata().put("lineCount", Integer.toString(lineCount));
-                    currentBlob.uploadMetadata();
-                } catch (StorageException e) {
+                    metadata.put("lineCount", Integer.toString(lineCount));
+                    appendBlobClient.setMetadata(metadata);
+                } catch (BlobStorageException e) {
                     throw new IOException(e);
                 }
             }
@@ -242,16 +229,16 @@ public class AzureJournalFile implements JournalFile {
 
         private void createNextFile(int suffix) throws IOException {
             try {
-                currentBlob = directory.getAppendBlobReference(getJournalFileName(suffix + 1));
-                currentBlob.createOrReplace();
+                appendBlobClient = blobContainerClient.getBlobClient(getJournalFileName(suffix + 1)).getAppendBlobClient();
+                appendBlobClient.create(true);
                 lineCount = 0;
-            } catch (URISyntaxException | StorageException e) {
+            } catch (BlobStorageException e) {
                 throw new IOException(e);
             }
         }
 
         private int parseCurrentSuffix() {
-            String name = AzureUtilities.getName(currentBlob);
+            String name = appendBlobClient.getBlobName();
             Pattern pattern = Pattern.compile(Pattern.quote(journalNamePrefix) + "\\.(\\d+)" );
             Matcher matcher = pattern.matcher(name);
             int parsedSuffix;
@@ -282,8 +269,8 @@ public class AzureJournalFile implements JournalFile {
 
         private JournalFileReader currentReader;
 
-        private CombinedReader(List<CloudAppendBlob> blobs) {
-            readers = blobs.stream().map(AzureJournalReader::new).iterator();
+        private CombinedReader(List<AppendBlobClient> appendBlobClients) {
+            readers = appendBlobClients.stream().map(AzureJournalReader::new).iterator();
         }
 
         @Override

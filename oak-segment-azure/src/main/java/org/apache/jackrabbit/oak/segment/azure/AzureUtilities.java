@@ -27,6 +27,9 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.specialized.BlockBlobClient;
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.ResultContinuation;
 import com.microsoft.azure.storage.ResultSegment;
@@ -53,6 +56,10 @@ public final class AzureUtilities {
 
     public static String getName(CloudBlob blob) {
         return Paths.get(blob.getName()).getFileName().toString();
+    }
+
+    public static String getName(String fullPath) {
+        return Paths.get(fullPath).getFileName().toString();
     }
 
     public static String getName(CloudBlobDirectory directory) {
@@ -83,6 +90,19 @@ public final class AzureUtilities {
             if (e.getHttpStatusCode() == 404) {
                 log.error("Blob not found in the remote repository: {}", blob.getName());
                 throw new FileNotFoundException("Blob not found in the remote repository: " + blob.getName());
+            }
+            throw new RepositoryNotReachableException(e);
+        }
+    }
+
+    public static void readBufferFully(BlockBlobClient blockBlobClient, Buffer buffer) throws IOException {
+        try {
+            blockBlobClient.downloadStream(new ByteBufferOutputStream(buffer));
+            buffer.flip();
+        } catch (BlobStorageException e) {
+            if (e.getErrorCode().equals(BlobErrorCode.BLOB_NOT_FOUND)) {
+                log.error("Blob not found in the remote repository: {}", blockBlobClient.getBlobName());
+                throw new FileNotFoundException("Blob not found in the remote repository: " + blockBlobClient.getBlobName());
             }
             throw new RepositoryNotReachableException(e);
         }

@@ -144,6 +144,12 @@
             <groupId>com.microsoft.azure</groupId>
             <artifactId>azure-keyvault-core</artifactId>
         </dependency>
+        <!-- Azure Blob Storage dependency (upgrade) -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-storage-blob</artifactId>
+            <version>12.25.0</version>
+        </dependency>
         <!-- Azure Guava dependency -->
         <dependency>
             <groupId>com.google.guava</groupId>

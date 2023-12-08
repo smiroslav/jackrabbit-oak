@@ -16,18 +16,20 @@
  */
 package org.apache.jackrabbit.oak.segment.azure;
 
-import com.microsoft.azure.storage.AccessCondition;
-import com.microsoft.azure.storage.RetryNoRetry;
-import com.microsoft.azure.storage.StorageErrorCodeStrings;
-import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.BlobRequestOptions;
-import com.microsoft.azure.storage.blob.CloudBlockBlob;
+import com.azure.core.http.RequestConditions;
+import com.azure.core.util.BinaryData;
+import com.azure.core.util.Context;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.specialized.BlobLeaseClient;
+import com.azure.storage.blob.specialized.BlockBlobClient;
 import org.apache.jackrabbit.oak.segment.remote.WriteAccessController;
 import org.apache.jackrabbit.oak.segment.spi.persistence.RepositoryLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -48,27 +50,27 @@ public class AzureRepositoryLock implements RepositoryLock {
     public static final String TIME_TO_WAIT_BEFORE_WRITE_BLOCK_PROP = "oak.segment.azure.lock.blockWritesAfterInSec";
     private final int timeToWaitBeforeWriteBlock = Integer.getInteger(TIME_TO_WAIT_BEFORE_WRITE_BLOCK_PROP, 20);
 
-    private final Runnable shutdownHook;
+    private Runnable shutdownHook;
 
-    private final CloudBlockBlob blob;
+    private ExecutorService executor;
 
-    private final ExecutorService executor;
-
-    private final int timeoutSec;
+    private int timeoutSec;
 
     private WriteAccessController writeAccessController;
 
     private String leaseId;
 
     private volatile boolean doUpdate;
+    private BlockBlobClient blobClient;
 
-    public AzureRepositoryLock(CloudBlockBlob blob, Runnable shutdownHook, WriteAccessController writeAccessController) {
-        this(blob, shutdownHook, writeAccessController, TIMEOUT_SEC);
+    private BlobLeaseClient blobLeaseClient;
+
+    public AzureRepositoryLock(BlockBlobClient blobClient, BlobLeaseClient blobLeaseClient, Runnable shutdownHook, WriteAccessController writeAccessController) {
+        this(blobClient, blobLeaseClient, shutdownHook, writeAccessController, TIMEOUT_SEC);
     }
 
-    public AzureRepositoryLock(CloudBlockBlob blob, Runnable shutdownHook, WriteAccessController writeAccessController, int timeoutSec) {
+    public AzureRepositoryLock(BlockBlobClient blobClient, BlobLeaseClient blobLeaseClient, Runnable shutdownHook, WriteAccessController writeAccessController, int timeoutSec) {
         this.shutdownHook = shutdownHook;
-        this.blob = blob;
         this.executor = Executors.newSingleThreadExecutor();
         this.timeoutSec = timeoutSec;
         this.writeAccessController = writeAccessController;
@@ -77,6 +79,9 @@ public class AzureRepositoryLock implements RepositoryLock {
             throw new IllegalStateException(String.format("The value of %s must be greater than %s and the value of %s must be greater than %s",
                     LEASE_DURATION_PROP, TIME_TO_WAIT_BEFORE_WRITE_BLOCK_PROP, TIME_TO_WAIT_BEFORE_WRITE_BLOCK_PROP, RENEWAL_INTERVAL_PROP));
         }
+
+        this.blobClient = blobClient;
+        this.blobLeaseClient = blobLeaseClient;
     }
 
     public AzureRepositoryLock lock() throws IOException {
@@ -84,16 +89,18 @@ public class AzureRepositoryLock implements RepositoryLock {
         Exception ex = null;
         do {
             try {
-                blob.openOutputStream().close();
+                if (!blobClient.exists()) {
+                    blobClient.upload(BinaryData.fromString(""));
+                }
 
                 log.info("{} = {}", LEASE_DURATION_PROP, leaseDuration);
                 log.info("{} = {}", RENEWAL_INTERVAL_PROP, renewalInterval);
                 log.info("{} = {}", TIME_TO_WAIT_BEFORE_WRITE_BLOCK_PROP, timeToWaitBeforeWriteBlock);
 
-                leaseId = blob.acquireLease(leaseDuration, null);
+                leaseId = blobLeaseClient.acquireLease(leaseDuration);
                 writeAccessController.enableWriting();
                 log.info("Acquired lease {}", leaseId);
-            } catch (StorageException | IOException e) {
+            } catch (BlobStorageException e) {
                 if (ex == null) {
                     log.info("Can't acquire the lease. Retrying every 1s. Timeout is set to {}s.", timeoutSec);
                 }
@@ -126,18 +133,15 @@ public class AzureRepositoryLock implements RepositoryLock {
             try {
                 if (timeSinceLastUpdate > renewalInterval) {
 
-                    BlobRequestOptions requestOptions = new BlobRequestOptions();
-                    requestOptions.setMaximumExecutionTimeInMs(LEASE_RENEWAL_TIMEOUT_MS);
-                    requestOptions.setRetryPolicyFactory(new RetryNoRetry());
-                    blob.renewLease(AccessCondition.generateLeaseCondition(leaseId), requestOptions, null);
+                    leaseId = blobLeaseClient.renewLeaseWithResponse((RequestConditions) null, Duration.ofMillis(LEASE_RENEWAL_TIMEOUT_MS), Context.NONE).getValue();
 
                     writeAccessController.enableWriting();
                     lastUpdate = System.currentTimeMillis();
                 }
-            } catch (StorageException e) {
+            } catch (BlobStorageException e) {
                 timeSinceLastUpdate = (System.currentTimeMillis() - lastUpdate) / 1000;
 
-                if (e.getErrorCode().equals(StorageErrorCodeStrings.OPERATION_TIMED_OUT)) {
+                if (e.getErrorCode().equals(BlobErrorCode.OPERATION_TIMED_OUT)) {
                     if (timeSinceLastUpdate > timeToWaitBeforeWriteBlock) {
                         writeAccessController.disableWriting();
                     }
@@ -172,11 +176,11 @@ public class AzureRepositoryLock implements RepositoryLock {
 
     private void releaseLease() throws IOException {
         try {
-            blob.releaseLease(AccessCondition.generateLeaseCondition(leaseId));
-            blob.delete();
+            blobLeaseClient.releaseLease();
+            blobClient.delete();
             log.info("Released lease {}", leaseId);
             leaseId = null;
-        } catch (StorageException e) {
+        } catch (BlobStorageException e) {
             throw new IOException(e);
         }
     }

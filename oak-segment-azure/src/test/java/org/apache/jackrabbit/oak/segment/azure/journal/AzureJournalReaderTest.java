@@ -16,18 +16,19 @@
  */
 package org.apache.jackrabbit.oak.segment.azure.journal;
 
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.CloudAppendBlob;
-import com.microsoft.azure.storage.blob.CloudBlobContainer;
-
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzuriteDockerRule;
+import org.apache.jackrabbit.oak.segment.azure.AzureJournalFile;
 import org.apache.jackrabbit.oak.segment.file.JournalReader;
 import org.apache.jackrabbit.oak.segment.file.JournalReaderTest;
-import org.apache.jackrabbit.oak.segment.azure.AzureJournalFile;
 import org.apache.jackrabbit.oak.segment.remote.WriteAccessController;
 import org.junit.Before;
 import org.junit.ClassRule;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
@@ -37,20 +38,29 @@ public class AzureJournalReaderTest extends JournalReaderTest {
     @ClassRule
     public static AzuriteDockerRule azurite = new AzuriteDockerRule();
 
-    private CloudBlobContainer container;
+    private BlobContainerClient blobContainerClient;
+
+    private AppendBlobClient appendBlobClient;
+
+    private String journalName;
 
     @Before
     public void setup() throws StorageException, InvalidKeyException, URISyntaxException {
-        container = azurite.getContainer("oak-test");
+        blobContainerClient = azurite.getBlobContainerClient("oak-test");
+        journalName = "journal/journal.log.001";
+        appendBlobClient = blobContainerClient.getBlobClient(journalName).getAppendBlobClient();
     }
 
     protected JournalReader createJournalReader(String s) throws IOException {
         try {
-            CloudAppendBlob blob = container.getAppendBlobReference("journal/journal.log.001");
-            blob.createOrReplace();
-            blob.appendText(s);
-            return new JournalReader(new AzureJournalFile(container.getDirectoryReference("journal"), "journal.log", new WriteAccessController()));
-        } catch (StorageException | URISyntaxException e) {
+            appendBlobClient.create(true);
+
+            if (s.length() > 0) {
+                appendBlobClient.appendBlock(new ByteArrayInputStream(s.getBytes()), s.length());
+            }
+
+            return new JournalReader(new AzureJournalFile(blobContainerClient, journalName, new WriteAccessController()));
+        } catch (BlobStorageException e) {
             throw new IOException(e);
         }
     }

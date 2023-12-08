@@ -16,13 +16,14 @@
  */
 package org.apache.jackrabbit.oak.segment.azure;
 
-import org.apache.jackrabbit.guava.common.base.Charsets;
-import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.CloudAppendBlob;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.specialized.AppendBlobClient;
 import org.apache.commons.io.IOUtils;
+import org.apache.jackrabbit.guava.common.base.Charsets;
 import org.apache.jackrabbit.oak.segment.spi.persistence.GCJournalFile;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Collections;
@@ -30,20 +31,18 @@ import java.util.List;
 
 public class AzureGCJournalFile implements GCJournalFile {
 
-    private final CloudAppendBlob gcJournal;
+    private AppendBlobClient appendBlobClient;
 
-    public AzureGCJournalFile(CloudAppendBlob gcJournal) {
-        this.gcJournal = gcJournal;
+    public AzureGCJournalFile(AppendBlobClient appendBlobClient) {
+        this.appendBlobClient = appendBlobClient;
     }
 
     @Override
     public void writeLine(String line) throws IOException {
         try {
-            if (!gcJournal.exists()) {
-                gcJournal.createOrReplace();
-            }
-            gcJournal.appendText(line + "\n", Charsets.UTF_8.name(), null, null, null);
-        } catch (StorageException e) {
+            appendBlobClient.createIfNotExists();
+            appendBlobClient.appendBlock(new ByteArrayInputStream((line + "\n").getBytes(Charsets.UTF_8.name())), line.length() + 1);
+        } catch (BlobStorageException e) {
             throw new IOException(e);
         }
     }
@@ -51,13 +50,16 @@ public class AzureGCJournalFile implements GCJournalFile {
     @Override
     public List<String> readLines() throws IOException {
         try {
-            if (!gcJournal.exists()) {
+            if (!appendBlobClient.exists()) {
                 return Collections.emptyList();
             }
-            byte[] data = new byte[(int) gcJournal.getProperties().getLength()];
-            gcJournal.downloadToByteArray(data, 0);
-            return IOUtils.readLines(new ByteArrayInputStream(data), Charset.defaultCharset());
-        } catch (StorageException e) {
+            byte[] data = new byte[(int) appendBlobClient.getProperties().getBlobSize()];
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            appendBlobClient.downloadStream(outputStream);
+
+            return IOUtils.readLines(new ByteArrayInputStream(outputStream.toByteArray()), Charset.defaultCharset());
+        } catch (BlobStorageException e) {
             throw new IOException(e);
         }
     }
@@ -65,10 +67,10 @@ public class AzureGCJournalFile implements GCJournalFile {
     @Override
     public void truncate() throws IOException {
         try {
-            if (gcJournal.exists()) {
-                gcJournal.delete();
+            if (appendBlobClient.exists()) {
+                appendBlobClient.delete();
             }
-        } catch (StorageException e) {
+        } catch (BlobStorageException e) {
             throw new IOException(e);
         }
     }

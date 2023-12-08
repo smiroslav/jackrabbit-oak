@@ -18,8 +18,14 @@
  */
 package org.apache.jackrabbit.oak.segment.azure;
 
+import com.azure.core.util.BinaryData;
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.specialized.BlockBlobClient;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
+import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzuriteDockerRule;
+import org.apache.jackrabbit.oak.commons.Buffer;
+import org.apache.jackrabbit.oak.segment.remote.RemoteSegmentArchiveEntry;
 import org.apache.jackrabbit.oak.segment.remote.WriteAccessController;
 import org.apache.jackrabbit.oak.segment.spi.monitor.FileStoreMonitorAdapter;
 import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitorAdapter;
@@ -28,6 +34,7 @@ import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveManager;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveWriter;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockserver.client.MockServerClient;
@@ -42,7 +49,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.UUID;
 
-import static org.junit.Assert.assertThrows;
+import static org.apache.jackrabbit.oak.segment.remote.RemoteUtilities.getSegmentFileName;
+import static org.junit.Assert.*;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 import static org.mockserver.verify.VerificationTimes.exactly;
@@ -53,6 +61,14 @@ public class AzureSegmentArchiveWriterTest {
 
     @Rule
     public MockServerRule mockServerRule = new MockServerRule(this);
+
+    @ClassRule
+    public static AzuriteDockerRule azurite = new AzuriteDockerRule();
+
+    private BlobContainerClient blobContainerClient;
+
+    private String rootPrefix = "oak";
+
 
     @SuppressWarnings("unused")
     private MockServerClient mockServerClient;
@@ -69,6 +85,8 @@ public class AzureSegmentArchiveWriterTest {
         // Disable Azure SDK own retry mechanism used by AzureSegmentArchiveWriter
         System.setProperty("segment.azure.retry.attempts", "0");
         System.setProperty("segment.timeout.execution", "1");
+
+        blobContainerClient = azurite.getBlobContainerClient("oak-test");
     }
 
     @Test
@@ -170,7 +188,7 @@ public class AzureSegmentArchiveWriterTest {
     private SegmentArchiveWriter createSegmentArchiveWriter() throws URISyntaxException, IOException {
         WriteAccessController writeAccessController = new WriteAccessController();
         writeAccessController.enableWriting();
-        AzurePersistence azurePersistence = new AzurePersistence(container.getDirectoryReference("oak"));/**/
+        AzurePersistence azurePersistence = new AzurePersistence(blobContainerClient, rootPrefix);/**/
         azurePersistence.setWriteAccessController(writeAccessController);
         SegmentArchiveManager manager = azurePersistence.createArchiveManager(false, false, new IOMonitorAdapter(), new FileStoreMonitorAdapter(), new RemoteStoreMonitorAdapter());
         SegmentArchiveWriter writer = manager.create("data00000a.tar");
@@ -219,5 +237,90 @@ public class AzureSegmentArchiveWriterTest {
                 .build();
 
         return new CloudBlobContainer(uri);
+    }
+
+    // ========= AzureSDK upgrade tests =========
+    @Test
+    public void testDoWriteArchiveEntry() throws IOException {
+
+        UUID u = UUID.randomUUID();
+        String segmentContent = "segment0000";
+        RemoteSegmentArchiveEntry entry = new RemoteSegmentArchiveEntry(u.getMostSignificantBits(), u.getLeastSignificantBits(),
+                0, segmentContent.getBytes().length, 0, 0, false);
+
+        WriteAccessController writeAccessController = new WriteAccessController();
+        String archiveName = "data00000a.tar";
+
+        AzureSegmentArchiveWriter writer = new AzureSegmentArchiveWriter(blobContainerClient, rootPrefix, archiveName, new IOMonitorAdapter(), new FileStoreMonitorAdapter(), writeAccessController);
+        writeAccessController.enableWriting();
+        writer.doWriteArchiveEntry(entry, segmentContent.getBytes(), 0, segmentContent.getBytes().length);
+
+        // verify
+        BlockBlobClient blockBlobClient = blobContainerClient.getBlobClient(getArchivePrefix(archiveName) + getSegmentFileName(entry)).getBlockBlobClient();
+
+        assertTrue(blobContainerClient.exists());
+        assertTrue(blockBlobClient.downloadContent().toString().equals(segmentContent));
+        assertTrue(blockBlobClient.getProperties().getMetadata().equals(AzureBlobMetadata.toSegmentMetadata(entry)));
+    }
+
+    @Test
+    public void testDoReadArchiveEntry() throws IOException {
+        UUID u = UUID.randomUUID();
+        String segmentContent = "segment0000";
+        RemoteSegmentArchiveEntry entry = new RemoteSegmentArchiveEntry(u.getMostSignificantBits(), u.getLeastSignificantBits(),
+                0, segmentContent.getBytes().length, 0, 0, false);
+
+        WriteAccessController writeAccessController = new WriteAccessController();
+        String archiveName = "data00000a.tar";
+
+        AzureSegmentArchiveWriter writer = new AzureSegmentArchiveWriter(blobContainerClient, rootPrefix, archiveName, new IOMonitorAdapter(), new FileStoreMonitorAdapter(), writeAccessController);
+
+        blobContainerClient.getBlobClient(getArchivePrefix(archiveName) + getSegmentFileName(entry)).upload(BinaryData.fromString(segmentContent));
+
+        // read
+        assertEquals(Buffer.wrap(segmentContent.getBytes()), writer.doReadArchiveEntry(entry));
+    }
+
+    @Test
+    public void testDoWriteDataFile() throws IOException {
+        String archiveName = "data00000a.tar";
+        String graphFileName = archiveName + ".gph";
+        String graphContent = "graph";
+        String binaryRefsFileName = archiveName + ".brf";
+        String binaryRefsContent = "binaryRefs";
+
+        WriteAccessController writeAccessController = new WriteAccessController();
+        AzureSegmentArchiveWriter writer = new AzureSegmentArchiveWriter(blobContainerClient, rootPrefix, archiveName, new IOMonitorAdapter(), new FileStoreMonitorAdapter(), writeAccessController);
+        writeAccessController.enableWriting();
+
+        writer.doWriteDataFile(graphContent.getBytes(), ".gph");
+        writer.doWriteDataFile(binaryRefsContent.getBytes(), ".brf");
+
+        // verify
+        BlockBlobClient graphBlobClient = blobContainerClient.getBlobClient(getArchivePrefix(archiveName) + graphFileName).getBlockBlobClient();
+        BlockBlobClient binaryRefsBlobClient = blobContainerClient.getBlobClient(getArchivePrefix(archiveName) + binaryRefsFileName).getBlockBlobClient();
+
+        assertTrue(graphBlobClient.downloadContent().toString().equals(graphContent));
+        assertTrue(binaryRefsBlobClient.downloadContent().toString().equals(binaryRefsContent));
+    }
+
+
+    @Test
+    public void testAfterQueueClosed() throws IOException {
+        WriteAccessController writeAccessController = new WriteAccessController();
+        String archiveName = "data00000a.tar";
+        AzureSegmentArchiveWriter writer = new AzureSegmentArchiveWriter(blobContainerClient, rootPrefix, archiveName, new IOMonitorAdapter(), new FileStoreMonitorAdapter(), writeAccessController);
+        writeAccessController.enableWriting();
+
+        writer.afterQueueClosed();
+
+        // verify
+        BlockBlobClient closedBlobClient = blobContainerClient.getBlobClient(getArchivePrefix(archiveName) + "closed").getBlockBlobClient();
+        assertTrue(closedBlobClient.exists());
+    }
+
+    @NotNull
+    private String getArchivePrefix(String archiveName) {
+        return rootPrefix + "/" + archiveName + "/";
     }
 }

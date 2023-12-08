@@ -16,6 +16,9 @@
  */
 package org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage;
 
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -38,7 +41,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class AzuriteDockerRule extends ExternalResource {
 
-    private static final DockerImageName DOCKER_IMAGE_NAME = DockerImageName.parse("mcr.microsoft.com/azure-storage/azurite:3.19.0");
+    //private static final DockerImageName DOCKER_IMAGE_NAME = DockerImageName.parse("mcr.microsoft.com/azure-storage/azurite:3.19.0");
+    private static final DockerImageName DOCKER_IMAGE_NAME = DockerImageName.parse("mcr.microsoft.com/azure-storage/azurite:latest");
     public static final String ACCOUNT_KEY = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==";
     public static final String ACCOUNT_NAME = "devstoreaccount1";
     private static final AtomicReference<Exception> STARTUP_EXCEPTION = new AtomicReference<>();
@@ -109,14 +113,29 @@ public class AzuriteDockerRule extends ExternalResource {
         return container;
     }
 
+    public BlobContainerClient getBlobContainerClient(String name) {
+        BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
+                .connectionString(getConnectionString())
+                .buildClient();
+
+        BlobContainerClient blobContainerClient = blobServiceClient.getBlobContainerClient(name);
+
+        blobContainerClient.deleteIfExists();
+        blobContainerClient.create();
+
+        return blobContainerClient;
+    }
+
     public CloudStorageAccount getCloudStorageAccount() throws URISyntaxException, InvalidKeyException {
-        String blobEndpoint = "BlobEndpoint=" + getBlobEndpoint();
-        String accountName = "AccountName=" + ACCOUNT_NAME;
-        String accountKey = "AccountKey=" + ACCOUNT_KEY;
-        return CloudStorageAccount.parse("DefaultEndpointsProtocol=http;" + ";" + accountName + ";" + accountKey + ";" + blobEndpoint);
+        return CloudStorageAccount.parse(getConnectionString());
     }
 
     public int getMappedPort() {
         return azuriteContainer.getMappedPort(10000);
+    }
+
+
+    private String getConnectionString() {
+        return "DefaultEndpointsProtocol=http;" + "AccountName=" + ACCOUNT_NAME + ";" + "AccountKey=" + ACCOUNT_KEY + ";" + "BlobEndpoint=" + getBlobEndpoint();
     }
 }

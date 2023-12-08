@@ -711,6 +711,7 @@
         <version>${testcontainers.version}</version>
         <scope>test</scope>
       </dependency>
+      <!-- Azure dependencies -->
       <dependency>
         <groupId>com.microsoft.azure</groupId>
         <artifactId>azure-storage</artifactId>
@@ -720,6 +721,12 @@
         <groupId>com.microsoft.azure</groupId>
         <artifactId>azure-keyvault-core</artifactId>
         <version>1.2.6</version>
+      </dependency>
+      <!-- Azure dependencies (upgrade) -->
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-storage-blob</artifactId>
+        <version>12.25.0</version>
       </dependency>
 
       <!-- Pax Exam Integration Test Dependencies -->

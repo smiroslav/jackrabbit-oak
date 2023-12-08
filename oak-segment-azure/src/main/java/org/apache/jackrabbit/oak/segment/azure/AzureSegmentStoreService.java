@@ -18,6 +18,9 @@
  */
 package org.apache.jackrabbit.oak.segment.azure;
 
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
@@ -41,7 +44,6 @@ import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.util.Hashtable;
 import java.util.Objects;
-import java.util.Properties;
 
 import static org.osgi.framework.Constants.SERVICE_PID;
 
@@ -143,6 +145,34 @@ public class AzureSegmentStoreService {
         } catch (StorageException | URISyntaxException | InvalidKeyException e) {
             throw new IOException(e);
         }
+    }
+
+    @NotNull
+    private static AzurePersistence createAzurePersistence2(
+            String connectionString,
+            Configuration configuration,
+            boolean createContainer
+    ) {
+
+        BlobServiceClient blobServiceClient = createBlobServiceClient(connectionString);
+
+        BlobContainerClient blobContainerClient = blobServiceClient.getBlobContainerClient(configuration.containerName());
+
+        if (createContainer && !blobContainerClient.exists()) {
+            blobContainerClient.create();
+        }
+
+        String rootPrefix = normalizePath(configuration.rootPath());
+
+        return new AzurePersistence(blobContainerClient, rootPrefix);
+    }
+
+    private static BlobServiceClient createBlobServiceClient(String connectionString) {
+        BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
+                .connectionString(connectionString)
+                .buildClient();
+
+        return blobServiceClient;
     }
 
     @NotNull

@@ -19,6 +19,7 @@
 package org.apache.jackrabbit.oak.security.authentication.sync;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
@@ -34,6 +35,7 @@ import javax.jcr.Repository;
 import javax.jcr.SimpleCredentials;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -216,9 +218,11 @@ public class UserSyncBetweenRepositoriesTest {
         Group testGroup = userManager1.createGroup("testGroup");
         adminSession1.save();
 
+        LOG.info("Adding user {} to group {}", "testUser", "testGroup");
         User testUser = userManager1.createUser("testUser", "testUser");
         testGroup.addMember(testUser);
 
+        LOG.info("Adding user {} to group {}", "testUser2", "testGroup");
         User testUser2 = userManager1.createUser("testUser2", "testUser2");
         testGroup.addMember(testUser2);
         adminSession1.save();
@@ -235,6 +239,13 @@ public class UserSyncBetweenRepositoriesTest {
         assertTrue(testGroupInRepo2.isMember(testUser2InRepo2));
 
         // Remove the user from the first repository
+        // iterate over all members and log
+        Iterator<Authorizable> members = testGroup.getMembers();
+        LOG.info("Current members:");
+        while (members.hasNext()) {
+            LOG.info("Member: {}", members.next().getID());
+        }
+        LOG.info("Removing user {} from group {}", "testUser", "testGroup");
         testGroup.removeMember(testUser);
         adminSession1.save();
         TimeUnit.MILLISECONDS.sleep(500);
